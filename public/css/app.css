@@ -1,26 +1,27 @@
-/* Layout: app shell — dark teal side rail (bottom bar on phones), top bar with sede/versión/rol, one working column. */
+/* Layout: menú lateral café (barra inferior en celulares), barra superior con sede y usuario, una columna de trabajo.
+   Paleta Odgynella: café #361810, café claro #45200A, café naranjoso #9E3B05, café pastel #EDD9B4, blanco #F8F7F6. */
 :root{
-  --bg:#F3F6F6; --surface:#FFFFFF; --surface-2:#EDF2F2; --line:#D9E2E2; --ink:#14232A; --ink-2:#4A5A60; --ink-3:#66767B;
-  --accent:#0E6B68; --accent-ink:#FFFFFF; --accent-soft:#DCEEED; --accent-hover:#0A5653;
-  --side:#0C3B3B; --side-ink:#C9E2E0; --side-hi:#FFFFFF;
-  --danger:#B42318; --danger-soft:#FDECEA; --warn:#8F5200; --warn-soft:#FCF0DA; --ok:#1E6B34; --ok-soft:#E1F2E5;
-  --info:#1F4E8C; --info-soft:#E2EBF8; --purple:#6A3F9E; --purple-soft:#EEE6F8; --muted-soft:#E9EDEE;
+  --bg:#F8F7F6; --surface:#FFFFFF; --surface-2:#F3EDE6; --line:#E6DCD0; --ink:#2B1D17; --ink-2:#5C4436; --ink-3:#7A5A48;
+  --accent:#9E3B05; --accent-ink:#FFFFFF; --accent-soft:#F4E6CF; --accent-hover:#7F2F04;
+  --side:#361810; --side-ink:#EDD9B4; --side-hi:#FFFFFF; --side-hover:#45200A; --side-active:#EDD9B4; --side-active-ink:#361810;
+  --danger:#A3123A; --danger-soft:#FBE7EC; --warn:#8A6100; --warn-soft:#FBF0D4; --ok:#2F6B3A; --ok-soft:#E3F1E4;
+  --info:#1F4E8C; --info-soft:#E2EBF8; --purple:#6A3F9E; --purple-soft:#EEE6F8; --muted-soft:#EFE8E0;
   --font:'Plus Jakarta Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
   --mono:'IBM Plex Mono',ui-monospace,'SFMono-Regular',Menlo,monospace;
   --r:12px; --r-lg:16px;
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
-  --bg:#0D1517; --surface:#142023; --surface-2:#1A282C; --line:#29393E; --ink:#E5EEEF; --ink-2:#A8B8BC; --ink-3:#8A9A9F;
-  --accent:#43B6AE; --accent-ink:#04201E; --accent-soft:#153C3A; --accent-hover:#5FCAC2;
-  --side:#091D1E; --side-ink:#9FC8C4; --side-hi:#FFFFFF;
-  --danger:#F28B80; --danger-soft:#3A1C19; --warn:#EDB660; --warn-soft:#382A13; --ok:#72CC8D; --ok-soft:#173222;
-  --info:#8FB5EE; --info-soft:#172943; --purple:#C6A6F0; --purple-soft:#2B2140; --muted-soft:#223135; color-scheme:dark}}
+  --bg:#1A110D; --surface:#241813; --surface-2:#2E1F18; --line:#3D2A20; --ink:#F3E9DD; --ink-2:#CDB9A6; --ink-3:#A8907C;
+  --accent:#E08A4F; --accent-ink:#1A0D06; --accent-soft:#3A2316; --accent-hover:#EBA170;
+  --side:#120A07; --side-ink:#EDD9B4; --side-hi:#FFFFFF; --side-hover:#2A1710; --side-active:#EDD9B4; --side-active-ink:#361810;
+  --danger:#F28BA3; --danger-soft:#3A1720; --warn:#E6BE5C; --warn-soft:#382A13; --ok:#7CCB8E; --ok-soft:#173222;
+  --info:#8FB5EE; --info-soft:#172943; --purple:#C6A6F0; --purple-soft:#2B2140; --muted-soft:#2E221C; color-scheme:dark}}
 :root[data-theme="dark"]{
-  --bg:#0D1517; --surface:#142023; --surface-2:#1A282C; --line:#29393E; --ink:#E5EEEF; --ink-2:#A8B8BC; --ink-3:#8A9A9F;
-  --accent:#43B6AE; --accent-ink:#04201E; --accent-soft:#153C3A; --accent-hover:#5FCAC2;
-  --side:#091D1E; --side-ink:#9FC8C4; --side-hi:#FFFFFF;
-  --danger:#F28B80; --danger-soft:#3A1C19; --warn:#EDB660; --warn-soft:#382A13; --ok:#72CC8D; --ok-soft:#173222;
-  --info:#8FB5EE; --info-soft:#172943; --purple:#C6A6F0; --purple-soft:#2B2140; --muted-soft:#223135; color-scheme:dark}
+  --bg:#1A110D; --surface:#241813; --surface-2:#2E1F18; --line:#3D2A20; --ink:#F3E9DD; --ink-2:#CDB9A6; --ink-3:#A8907C;
+  --accent:#E08A4F; --accent-ink:#1A0D06; --accent-soft:#3A2316; --accent-hover:#EBA170;
+  --side:#120A07; --side-ink:#EDD9B4; --side-hi:#FFFFFF; --side-hover:#2A1710; --side-active:#EDD9B4; --side-active-ink:#361810;
+  --danger:#F28BA3; --danger-soft:#3A1720; --warn:#E6BE5C; --warn-soft:#382A13; --ok:#7CCB8E; --ok-soft:#173222;
+  --info:#8FB5EE; --info-soft:#172943; --purple:#C6A6F0; --purple-soft:#2B2140; --muted-soft:#2E221C; color-scheme:dark}
 html,body{height:100%}
 body{background:var(--bg);color:var(--ink);font-family:var(--font);font-size:15px;line-height:1.45}
 *{box-sizing:border-box}
@@ -39,8 +40,8 @@ p{margin:0}
 .brand{color:var(--side-hi);font-weight:800;font-size:17px;letter-spacing:.06em;padding:4px 12px 2px}
 .brand-sub{font-size:12px;color:var(--side-ink);padding:0 12px 18px}
 .nav{display:flex;align-items:center;gap:12px;width:100%;padding:12px;border:0;border-radius:10px;background:transparent;color:var(--side-ink);font-weight:600;font-size:15px;cursor:pointer;text-align:left;min-height:46px}
-.nav:hover{background:rgba(255,255,255,.07);color:var(--side-hi)}
-.nav[aria-current="page"]{background:rgba(255,255,255,.14);color:var(--side-hi)}
+.nav:hover{background:var(--side-hover);color:var(--side-hi)}
+.nav[aria-current="page"]{background:var(--side-active);color:var(--side-active-ink)}
 .nav svg{flex-shrink:0}
 .main{flex:1;min-width:0;display:flex;flex-direction:column;height:100%}
 .top{display:flex;flex-wrap:wrap;align-items:center;gap:12px 20px;padding:14px 28px;background:var(--surface);border-bottom:1px solid var(--line)}
