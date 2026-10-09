@@ -1,0 +1,21 @@
+{
+ "source": "prueba", "generated": "2026-10-09",
+ "patients": [
+  {"ref": "CL1", "name": "Ana Prueba", "original_name": "Ana", "notes": "Registro histórico de prueba.", "sede": null, "stage": "terminado", "first_date": "2026-07-02"},
+  {"ref": "CL2", "name": "Beto Prueba", "original_name": "Beto", "notes": "Registro histórico de prueba.", "sede": null, "stage": "en_tratamiento", "first_date": "2026-06-30"}
+ ],
+ "plans": [
+  {"ref": "P1", "patient": "CL1", "date": "2026-07-02", "date_known": true, "description": "Limpieza", "total": 200000,
+   "items": [{"description": "Limpieza", "amount": 200000, "done": true, "done_date": "2026-07-02"}], "internal_notes": "Importado"},
+  {"ref": "P2", "patient": "CL2", "date": "2026-06-30", "date_known": false, "description": "Microdiseño", "total": 1000000,
+   "items": [{"description": "Microdiseño — parte realizada", "amount": 400000, "done": true, "done_date": "2026-06-30"},
+             {"description": "Microdiseño — parte pendiente", "amount": 600000, "done": false, "done_date": null}], "internal_notes": "Importado"}
+ ],
+ "payments": [
+  {"ref": "PAY1", "plan": "P1", "patient": "CL1", "date": "2026-07-02", "date_known": true, "amount": 200000, "method": "Efectivo", "concept": "Pago total (histórico)", "sede": null},
+  {"ref": "PAY2", "plan": "P2", "patient": "CL2", "date": "2026-06-30", "date_known": false, "amount": 100000, "method": "Sin dato", "concept": "Abono 1 (histórico)", "sede": null}
+ ],
+ "expenses": [
+  {"ref": "C1", "date": "2026-07-02", "date_known": true, "category": "Arriendo", "detail": "Tiempo de consultorio · Ana", "amount": 30000, "sede": "Envigado", "note": ""}
+ ]
+}
