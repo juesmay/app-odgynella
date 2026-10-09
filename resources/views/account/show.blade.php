@@ -36,6 +36,15 @@
         <button class="btn pri" style="align-self:flex-start">Guardar contraseña</button>
     </form>
 
+    <div class="card stack">
+        <h2>Apariencia</h2>
+        <p class="small muted">Se guarda en este equipo. Cada persona elige la suya.</p>
+        <div class="dseg" role="group" aria-label="Apariencia">
+            <button type="button" data-tema="claro">Claro</button>
+            <button type="button" data-tema="oscuro">Oscuro</button>
+        </div>
+    </div>
+
     @if ($user->isDoctor())
         <div class="card stack">
             <h2>Equipo</h2>
@@ -69,3 +78,24 @@
     @endif
 </div>
 @endsection
+
+@push('scripts')
+<script>
+(function () {
+    var btns = document.querySelectorAll('[data-tema]');
+    function paint() {
+        var dark = document.documentElement.dataset.theme === 'dark';
+        btns.forEach(function (b) { b.setAttribute('aria-pressed', (b.dataset.tema === 'oscuro') === dark ? 'true' : 'false'); });
+    }
+    btns.forEach(function (b) {
+        b.addEventListener('click', function () {
+            var dark = b.dataset.tema === 'oscuro';
+            if (dark) document.documentElement.dataset.theme = 'dark'; else delete document.documentElement.dataset.theme;
+            try { localStorage.setItem('tema', b.dataset.tema); } catch (e) {}
+            paint();
+        });
+    });
+    paint();
+})();
+</script>
+@endpush
