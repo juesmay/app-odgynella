@@ -102,11 +102,16 @@
         @if ($clinic->signature)
             <div class="row" id="sig-current"><img src="{{ $clinic->signature }}" alt="Firma guardada" style="height:70px;background:#fff;border-radius:8px;border:1px solid var(--line);padding:4px">
                 <label class="check"><input type="checkbox" name="remove_signature" value="1"><span>Quitar la firma guardada</span></label></div>
-            <span class="small muted">Para cambiarla, dibuja una nueva abajo.</span>
+            <span class="small muted">Para cambiarla, sube una foto o dibuja una nueva abajo.</span>
         @endif
+        <label class="field" for="signature_photo"><span>Subir foto de la firma</span>
+            <input id="signature_photo" name="signature_photo" type="file" class="input" accept="image/jpeg,image/png,image/webp">
+            <span class="small muted">Firma con esfero negro o azul en una hoja blanca y tómale una foto de cerca, con buena luz y sin sombras. El sistema quita el fondo del papel y recorta la firma. Luego toca “Guardar datos”.</span>
+        </label>
+        <span class="small muted">O dibújala aquí:</span>
         <canvas id="sig-doc" aria-label="Recuadro para dibujar tu firma"></canvas>
         <input type="hidden" name="signature" id="sig-data">
-        <span class="small muted">Firma con el dedo, un lápiz táctil o el mouse. Sale en las órdenes de radiografía.</span>
+        <span class="small muted">Firma con el dedo, un lápiz táctil o el mouse. Sale en las órdenes y los consentimientos.</span>
     </div>
     <button class="btn pri" style="align-self:flex-start">Guardar datos</button>
 </form>

@@ -114,7 +114,11 @@ class SettingsController extends Controller
             'radiology_centers' => ['nullable', 'string', 'max:2000'],
             'logo' => ['nullable', 'image', 'mimes:png,jpg,jpeg', 'max:4096'],
             'signature' => ['nullable', 'string'],
+            'signature_photo' => ['nullable', 'image', 'mimes:png,jpg,jpeg,webp', 'max:10240'],
         ], [
+            'signature_photo.image' => 'La foto de la firma debe ser una imagen.',
+            'signature_photo.mimes' => 'La foto de la firma debe ser JPG, PNG o WEBP. Si el celular la guarda como HEIC, tómale una captura de pantalla y sube esa.',
+            'signature_photo.max' => 'La foto de la firma puede pesar máximo 10 MB.',
             'logo.mimes' => 'El logo debe ser PNG o JPG. Si es posible, PNG con fondo transparente.',
             'logo.max' => 'El logo puede pesar máximo 4 MB.',
         ], ['doctor_name' => 'nombre de la doctora', 'doctor_license' => 'registro profesional', 'email' => 'correo', 'brand_color' => 'color']);
@@ -123,7 +127,16 @@ class SettingsController extends Controller
             return back()->withErrors(['signature' => 'La firma no se pudo leer. Dibújala de nuevo.']);
         }
 
-        $update = collect($data)->except(['logo', 'signature', 'radiology_centers'])->all();
+        // Foto de la firma: tiene prioridad sobre la dibujada.
+        if ($request->hasFile('signature_photo')) {
+            $fromPhoto = Brand::signatureFromPhoto($request->file('signature_photo')->getRealPath());
+            if (! $fromPhoto || ! Brand::isSignature($fromPhoto)) {
+                return back()->withInput()->withErrors(['signature_photo' => 'No se encontró la firma en la foto. Tómala de cerca, con buena luz, sobre papel blanco y sin sombras.']);
+            }
+            $data['signature'] = $fromPhoto;
+        }
+
+        $update = collect($data)->except(['logo', 'signature', 'signature_photo', 'radiology_centers'])->all();
         $update['radiology_centers'] = collect(preg_split('/\R/', (string) ($data['radiology_centers'] ?? '')))
             ->map(fn ($l) => trim($l))->filter()->values()->all();
 

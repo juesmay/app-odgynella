@@ -115,6 +115,30 @@ class DocumentsTest extends TestCase
         $this->actingAs($c['assistant'])->post(route('settings.brand'), ['doctor_name' => 'X'])->assertForbidden();
     }
 
+    public function test_signature_from_a_photo_removes_the_paper(): void
+    {
+        if (! function_exists('imagecreatefromstring')) {
+            $this->markTestSkipped('Sin GD');
+        }
+        $c = $this->clinic();
+        $photo = new \Illuminate\Http\UploadedFile(base_path('tests/fixtures/firma-foto.jpg'), 'firma.jpg', 'image/jpeg', null, true);
+
+        $this->actingAs($c['doctor'])->post(route('settings.brand'), ['doctor_name' => 'Dra. Prueba', 'signature_photo' => $photo])
+            ->assertSessionHasNoErrors();
+
+        $sig = Brand::signature($c['clinic']->fresh());
+        $this->assertNotNull($sig);
+        $img = imagecreatefromstring(base64_decode(substr($sig, 22)));
+        $this->assertLessThanOrEqual(900, imagesx($img));
+        $this->assertLessThanOrEqual(400, imagesy($img));
+        $this->assertSame(127, (imagecolorat($img, 0, 0) >> 24) & 0x7F); // la esquina es papel: transparente
+
+        // Una hoja en blanco se rechaza y la firma guardada no cambia.
+        $blank = \Illuminate\Http\UploadedFile::fake()->image('blanca.jpg', 800, 600);
+        $this->post(route('settings.brand'), ['doctor_name' => 'Dra. Prueba', 'signature_photo' => $blank])->assertSessionHasErrors('signature_photo');
+        $this->assertSame($sig, Brand::signature($c['clinic']->fresh()));
+    }
+
     public function test_quote_items_priced_by_case_are_not_added_to_the_total(): void
     {
         $c = $this->clinic();

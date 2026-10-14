@@ -8,7 +8,7 @@
 .title { font-size: 30pt; }
 .kv td { padding: 2.5pt 0; vertical-align: top; }
 .kv .k { width: 92pt; font-size: 8pt; letter-spacing: .8pt; text-transform: uppercase; color: #6B5A70; }
-.sig { height: 48pt; }
+.sig { height: 62pt; }
 .sigline { border-top: 1pt solid {{ $brand['ink'] }}; padding-top: 4pt; width: 280pt; }
 </style>
 </head>
@@ -79,8 +79,8 @@
     <div style="margin-top:4pt;white-space:pre-line">{{ $order->notes }}</div>
 @endif
 
-<table style="margin-top:14pt;width:280pt;page-break-inside:avoid">
-    <tr><td style="height:50pt;vertical-align:bottom">@if ($signature)<img class="sig" src="{{ $signature }}" alt="Firma">@endif</td></tr>
+<table style="margin-top:6pt;width:280pt;page-break-inside:avoid">
+    <tr><td style="height:64pt;vertical-align:bottom">@if ($signature)<img class="sig" src="{{ $signature }}" alt="Firma">@endif</td></tr>
     <tr><td class="sigline">
         <div class="b">{{ $clinic->doctor_name }}</div>
         <div class="muted">{{ $clinic->doctor_title ?: 'Odontóloga' }}{{ $clinic->doctor_license ? ' · Registro profesional '.$clinic->doctor_license : '' }}</div>

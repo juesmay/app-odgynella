@@ -100,4 +100,127 @@ class Brand
 
         return $bin !== false && str_starts_with($bin, "\x89PNG");
     }
+
+    /**
+     * Firma desde una foto del papel: quita el fondo (lo deja transparente), deja solo la tinta,
+     * recorta los bordes y la reduce. Devuelve un PNG en data URI, o null si no se pudo leer.
+     */
+    public static function signatureFromPhoto(string $path): ?string
+    {
+        if (! function_exists('imagecreatefromstring') || ! ($src = @imagecreatefromstring((string) file_get_contents($path)))) {
+            return null;
+        }
+
+        // Trabaja en un tamaño razonable.
+        $w = imagesx($src);
+        $h = imagesy($src);
+        $scale = min(1, 1800 / max($w, $h));
+        $w2 = max(1, (int) round($w * $scale));
+        $h2 = max(1, (int) round($h * $scale));
+        $img = imagecreatetruecolor($w2, $h2);
+        imagecopyresampled($img, $src, 0, 0, 0, 0, $w2, $h2, $w, $h);
+        imagedestroy($src);
+
+        // Brillo del papel alrededor de cada punto: la foto reducida a un mosaico y vuelta a ampliar.
+        // Las sombras y la luz desigual son suaves y quedan en ese fondo; el trazo es fino y no.
+        $tile = imagecreatetruecolor(max(2, (int) round($w2 / 40)), max(2, (int) round($h2 / 40)));
+        imagecopyresampled($tile, $img, 0, 0, 0, 0, imagesx($tile), imagesy($tile), $w2, $h2);
+        $bgImg = imagecreatetruecolor($w2, $h2);
+        imagecopyresampled($bgImg, $tile, 0, 0, 0, 0, $w2, $h2, imagesx($tile), imagesy($tile));
+        imagedestroy($tile);
+
+        $gray = fn (int $c) => (int) (0.299 * (($c >> 16) & 255) + 0.587 * (($c >> 8) & 255) + 0.114 * ($c & 255));
+        // $lum = cuánto más oscuro que su papel es cada punto (0 = igual al papel).
+        $lum = [];
+        for ($y = 0; $y < $h2; $y++) {
+            for ($x = 0; $x < $w2; $x++) {
+                $lum[$y * $w2 + $x] = max(0, $gray(imagecolorat($bgImg, $x, $y)) - $gray(imagecolorat($img, $x, $y)));
+            }
+        }
+        imagedestroy($bgImg);
+        $ink = 32;  // así de más oscuro: tinta sólida
+        $edge = 18; // menos que esto: papel
+
+        // Caja de la tinta.
+        [$minX, $minY, $maxX, $maxY] = [$w2, $h2, -1, -1];
+        foreach ($lum as $i => $l) {
+            if ($l > $edge) {
+                $x = $i % $w2;
+                $y = intdiv($i, $w2);
+                $minX = min($minX, $x);
+                $maxX = max($maxX, $x);
+                $minY = min($minY, $y);
+                $maxY = max($maxY, $y);
+            }
+        }
+        if ($maxX < 0 || ($maxX - $minX) < 20) {
+            imagedestroy($img);
+
+            return null; // no se encontró una firma
+        }
+        $pad = 8;
+        $minX = max(0, $minX - $pad);
+        $minY = max(0, $minY - $pad);
+        $maxX = min($w2 - 1, $maxX + $pad);
+        $maxY = min($h2 - 1, $maxY + $pad);
+        $cw = $maxX - $minX + 1;
+        $ch = $maxY - $minY + 1;
+
+        // Tinta oscura sobre transparente.
+        $out = imagecreatetruecolor($cw, $ch);
+        imagealphablending($out, false);
+        imagesavealpha($out, true);
+        imagefill($out, 0, 0, imagecolorallocatealpha($out, 0, 0, 0, 127));
+        for ($y = 0; $y < $ch; $y++) {
+            for ($x = 0; $x < $cw; $x++) {
+                $l = $lum[($y + $minY) * $w2 + ($x + $minX)];
+                if ($l <= $edge) {
+                    continue;
+                }
+                $alpha = $l >= $ink ? 0 : (int) round(127 * ($ink - $l) / ($ink - $edge)); // 0 = opaco
+                $c = imagecolorat($img, $x + $minX, $y + $minY);
+                // Conserva el tono de la tinta (azul o negra) pero más oscuro.
+                $r = (int) ((($c >> 16) & 255) * 0.6);
+                $g = (int) ((($c >> 8) & 255) * 0.6);
+                $b = (int) (($c & 255) * 0.6);
+                imagesetpixel($out, $x, $y, imagecolorallocatealpha($out, $r, $g, $b, $alpha));
+            }
+        }
+        imagedestroy($img);
+
+        // Máximo 900 x 400: nítida en el PDF y liviana.
+        $s = min(1, 900 / $cw, 400 / $ch);
+        if ($s < 1) {
+            $fw = max(1, (int) round($cw * $s));
+            $fh = max(1, (int) round($ch * $s));
+            $small = imagecreatetruecolor($fw, $fh);
+            imagealphablending($small, false);
+            imagesavealpha($small, true);
+            imagefill($small, 0, 0, imagecolorallocatealpha($small, 0, 0, 0, 127));
+            imagecopyresampled($small, $out, 0, 0, 0, 0, $fw, $fh, $cw, $ch);
+            imagedestroy($out);
+            $out = $small;
+        }
+
+        // Al reducirla, un esfero fino queda tenue: se refuerza la opacidad del trazo.
+        $ow = imagesx($out);
+        $oh = imagesy($out);
+        for ($y = 0; $y < $oh; $y++) {
+            for ($x = 0; $x < $ow; $x++) {
+                $c = imagecolorat($out, $x, $y);
+                $a = ($c >> 24) & 0x7F;
+                if ($a < 127) {
+                    $na = max(0, (int) round(127 - (127 - $a) * 2.2));
+                    imagesetpixel($out, $x, $y, ($na << 24) | ($c & 0xFFFFFF));
+                }
+            }
+        }
+
+        ob_start();
+        imagepng($out, null, 9);
+        $png = (string) ob_get_clean();
+        imagedestroy($out);
+
+        return 'data:image/png;base64,'.base64_encode($png);
+    }
 }
