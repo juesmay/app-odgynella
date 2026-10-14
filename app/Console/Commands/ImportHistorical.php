@@ -63,11 +63,19 @@ class ImportHistorical extends Command
         $defaultSede = $sedes[$this->option('sede')] ?? $sedes->first();
 
         DB::transaction(function () use ($data, $clinic, $doctor, $sedes, $defaultSede) {
+            // Sede de cada paciente: la de su último pago con sede; si no, la sede por defecto.
+            $patientSede = [];
+            foreach ($data['payments'] as $pg) {
+                if (($pg['sede'] ?? null) && isset($sedes[$pg['sede']])) {
+                    $patientSede[$pg['patient']] = $sedes[$pg['sede']];
+                }
+            }
+
             $patients = [];
             foreach ($data['patients'] as $p) {
                 $created = Carbon::parse($p['first_date'])->setTime(9, 0);
                 $patient = new Patient([
-                    'clinic_id' => $clinic->id, 'name' => $p['name'], 'phone' => null, 'phone_key' => null,
+                    'clinic_id' => $clinic->id, 'sede_id' => $patientSede[$p['ref']] ?? $defaultSede, 'name' => $p['name'], 'phone' => null, 'phone_key' => null,
                     'stage' => $p['stage'], 'stage_changed_at' => $created, 'historical' => true, 'notes' => $p['notes'],
                     'created_by' => $doctor->id,
                 ]);

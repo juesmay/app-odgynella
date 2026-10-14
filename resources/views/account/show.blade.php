@@ -17,6 +17,24 @@
 @endif
 
 <div class="grid2">
+    <div class="card stack">
+        <h2>Foto de perfil</h2>
+        <div class="row" style="gap:16px;align-items:center">
+            @include('partials.avatar', ['u' => $user, 'size' => 88])
+            <div class="stack-sm" style="flex:1;min-width:200px">
+                <form method="POST" action="{{ route('account.avatar') }}" enctype="multipart/form-data" class="stack-sm" id="avatar-form">
+                    @csrf
+                    <input id="avatar" name="avatar" type="file" class="input" accept="image/jpeg,image/png,image/webp" aria-label="Elegir foto" onchange="this.form.submit()">
+                    <noscript><button class="btn sm">Subir foto</button></noscript>
+                </form>
+                <p class="small muted">Sale arriba junto a tu nombre y en el equipo. Se recorta cuadrada.</p>
+                @if ($user->avatar_path)
+                    <form method="POST" action="{{ route('account.avatar') }}">@csrf<input type="hidden" name="quitar" value="1"><button class="btn sm ghost danger">Quitar foto</button></form>
+                @endif
+            </div>
+        </div>
+    </div>
+
     <form method="POST" action="{{ route('account.password') }}" class="card stack">
         @csrf @method('PUT')
         <h2>Cambiar contraseña</h2>
@@ -51,6 +69,7 @@
             <div class="list">
                 @foreach ($team as $u)
                     <div class="li">
+                        @include('partials.avatar', ['u' => $u, 'size' => 36])
                         <span class="grow"><strong>{{ $u->name }}</strong>{{ $u->id === $user->id ? ' (tú)' : '' }}<br>
                             <span class="small muted">{{ $u->email }} · {{ $u->isDoctor() ? 'Doctora' : 'Asistente' }}</span></span>
                         @unless ($u->active)<span class="chip c-cancel">Desactivado</span>@endunless

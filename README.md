@@ -84,6 +84,18 @@ php artisan test
 - En **Configuración → Datos de la doctora** se cambian el logo, el color, el contacto, el registro profesional, la firma, el texto de facilidad de pago y la lista de centros radiológicos.
 - Fuentes: Poppins y Bebas Neue (licencia libre OFL), en `resources/fonts`.
 
+## Pedidos de la doctora (octubre)
+
+- **Historia clínica sin pérdidas**: un solo botón “Guardar historia clínica” guarda antecedentes y examen juntos; los diagnósticos se agregan y descartan sin recargar; lo escrito queda en borrador y avisa si sales sin guardar.
+- **Sede por paciente**: cada paciente pertenece a una sede. Pacientes, Cotizaciones y Cartera muestran la sede elegida arriba, con “Ver todas las sedes”.
+- **Tratamiento por diente** en el odontograma y botón **“Pasar a cotización”**, que arma la cotización agrupando dientes por tratamiento.
+- **Hallazgos propios** del odontograma en Configuración (nombre, sigla, color, por caras o diente completo).
+- **Órdenes en blanco** (recetas, laboratorio, remisiones) con plantillas en Configuración. Numeración OR-; las de radiografía siguen con RX-.
+- **En pausa**: un tratamiento detenido sale de cartera y no recibe abonos. Al volver: “Retomar el mismo plan” o “Retomar con cotización nueva” (trae lo pendiente; al aceptarla, el plan viejo se cierra con lo realizado y el anticipo pasa como abono).
+- **Gastos por tipo**: Consultorio, Negocio y Personal, con categorías editables. Reportes muestra la utilidad del negocio, los gastos personales y lo que realmente quedó. Al contador no van los personales. La asistente no ve lo personal ni lo privado.
+- **Costo por paciente**: tarifa del consultorio por hora en cada sede (Configuración). Al marcar una cita como atendida se registra su tiempo como costo del paciente. En la Cuenta del paciente, la doctora ve “Costo y ganancia” y puede agregar otros costos (laboratorio, especialista). Reportes muestra la ganancia por paciente.
+- **Foto de perfil** en Mi cuenta; sale arriba y en el equipo.
+
 ## Si ya tenías instalada la versión anterior
 
 En la terminal de Laragon, dentro de la carpeta del proyecto:

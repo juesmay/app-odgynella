@@ -15,6 +15,8 @@
     </div>
 </div>
 
+@include('partials.sede-filter')
+
 <div class="stats">
     @foreach (Accounts::BUCKETS as $key => [$label, $range, $class])
         <div class="stat {{ $key === '90' && $buckets[$key]['amount'] > 0 ? 'neg' : '' }}">
@@ -24,6 +26,21 @@
         </div>
     @endforeach
 </div>
+
+@if ($paused->isNotEmpty())
+    <details class="card" style="margin-top:16px">
+        <summary style="cursor:pointer"><strong>{{ $paused->count() === 1 ? '1 tratamiento en pausa' : $paused->count().' tratamientos en pausa' }}</strong>
+            <span class="muted">· {{ Time::money($paused->sum('owed')) }} congelados, no se cobran hasta que el paciente vuelva</span></summary>
+        <div class="list" style="margin-top:10px">
+            @foreach ($paused as $r)
+                <a class="li" href="{{ route('patients.account', $r['patient']) }}" style="text-decoration:none;color:inherit">
+                    <span class="grow"><strong>{{ $r['patient']->name }}</strong><br><span class="small muted">{{ $r['quote']->code() }} · en pausa desde el {{ $r['quote']->paused_at->translatedFormat('j M Y') }}{{ $r['patient']->lost_reason ? ' · '.$r['patient']->lost_reason : '' }}</span></span>
+                    <span>{{ $r['owed'] ? 'Hecho sin pagar '.Time::money($r['owed']) : 'Sin deuda de lo hecho' }}</span>
+                </a>
+            @endforeach
+        </div>
+    </details>
+@endif
 
 <div class="card" style="margin-top:20px">
     @if ($rows->isEmpty())

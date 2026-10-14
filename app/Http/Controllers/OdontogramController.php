@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Patient;
+use App\Models\Service;
 use App\Support\Clinical;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -26,6 +27,9 @@ class OdontogramController extends Controller
             'dentition' => $dentition,
             'chart' => Clinical::chart($dentition),
             'index' => Clinical::cariesIndex($teeth),
+            'findings' => Clinical::findings(),
+            'services' => Service::where('active', true)->orderBy('name')->get(['id', 'name', 'price']),
+            'planned' => $teeth->filter(fn ($t) => ! empty($t->plan))->count(),
         ]);
     }
 
@@ -38,14 +42,18 @@ class OdontogramController extends Controller
         return redirect()->route('patients.odontogram', $patient)->with('ok', 'Odontograma en dentición '.mb_strtolower(Clinical::DENTITIONS[$data['dentition']]).'.');
     }
 
-    /** Guarda todos los hallazgos y la observación de un diente. */
+    /** Guarda los hallazgos, el tratamiento indicado y la observación de un diente. */
     public function update(Request $request, Patient $patient, int $tooth): RedirectResponse
     {
         abort_unless(in_array($tooth, Clinical::allTeeth(), true), 404);
 
+        $catalog = Clinical::findings();
         $data = $request->validate([
             'findings' => ['nullable', 'array'],
-            'findings.*' => [Rule::in(array_keys(Clinical::FINDINGS))],
+            'findings.*' => [Rule::in(array_keys($catalog))],
+            'plan' => ['nullable', 'array', 'max:8'],
+            'plan.*.service_id' => ['nullable', 'integer', Rule::exists('services', 'id')->where('clinic_id', $request->user()->clinic_id)],
+            'plan.*.name' => ['nullable', 'string', 'max:120'],
             'surfaces' => ['nullable', 'array'],
             'surfaces.*' => ['nullable', 'array'],
             'surfaces.*.*' => [Rule::in(array_keys(Clinical::SURFACES))],
@@ -57,21 +65,27 @@ class OdontogramController extends Controller
             if (Clinical::isPrimary($tooth) && in_array($type, Clinical::ADULT_ONLY, true)) {
                 continue;
             }
-            $byFace = Clinical::FINDINGS[$type]['faces'];
+            $byFace = $catalog[$type]['faces'];
             $surfaces = $byFace ? array_values(array_unique($data['surfaces'][$type] ?? [])) : [];
             if ($byFace && ! $surfaces) {
-                return back()->withErrors(['findings' => 'Marca en qué caras está: '.mb_strtolower(Clinical::FINDINGS[$type]['name']).'.'])->withInput();
+                return back()->withErrors(['findings' => 'Marca en qué caras está: '.mb_strtolower($catalog[$type]['name']).'.'])->withInput();
             }
             $findings[] = ['type' => $type, 'surfaces' => $surfaces];
         }
 
+        $plan = collect($data['plan'] ?? [])
+            ->map(fn ($p) => ['service_id' => isset($p['service_id']) ? (int) $p['service_id'] : null, 'name' => trim((string) ($p['name'] ?? ''))])
+            ->filter(fn ($p) => $p['name'] !== '')
+            ->unique('name')->values()->all();
+
         $note = trim((string) ($data['note'] ?? ''));
 
-        if (! $findings && $note === '') {
+        if (! $findings && ! $plan && $note === '') {
             $patient->teeth()->where('tooth', $tooth)->delete();
         } else {
             $patient->teeth()->updateOrCreate(['tooth' => $tooth], [
                 'findings' => $findings,
+                'plan' => $plan ?: null,
                 'note' => $note ?: null,
                 'updated_by' => $request->user()->id,
             ]);

@@ -21,7 +21,7 @@ class EnsureAccountReady
             return redirect()->route('login')->withErrors(['email' => 'Tu usuario está desactivado. Habla con la doctora.']);
         }
 
-        if ($user?->must_change_password && ! $request->routeIs('account', 'account.password', 'logout')) {
+        if ($user?->must_change_password && ! $request->routeIs('account', 'account.password', 'account.avatar', 'users.avatar', 'logout')) {
             return redirect()->route('account')->with('warn', 'Antes de seguir, cambia la contraseña temporal por una tuya.');
         }
 

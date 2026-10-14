@@ -6,6 +6,7 @@ use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
@@ -38,6 +39,71 @@ class AccountSettingsController extends Controller
         $request->session()->regenerate();
 
         return redirect()->route('today')->with('ok', 'Contraseña cambiada.');
+    }
+
+    /** Foto de perfil: se recorta cuadrada y se guarda pequeña (256 px) en almacenamiento privado. */
+    public function avatar(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+
+        if ($request->boolean('quitar')) {
+            if ($user->avatar_path) {
+                Storage::disk('local')->delete($user->avatar_path);
+            }
+            $user->update(['avatar_path' => null]);
+
+            return back()->with('ok', 'Foto quitada.');
+        }
+
+        $request->validate(['avatar' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:8192']], [
+            'avatar.required' => 'Elige una foto.',
+            'avatar.image' => 'El archivo debe ser una foto.',
+            'avatar.mimes' => 'La foto debe ser JPG, PNG o WEBP.',
+            'avatar.max' => 'La foto puede pesar máximo 8 MB.',
+        ]);
+
+        $file = $request->file('avatar');
+        $dir = 'avatars/'.$user->clinic_id;
+        $square = self::squareJpeg($file->getRealPath());
+        $path = $dir.'/'.$user->id.'-'.Str::random(8).($square ? '.jpg' : '.'.$file->extension());
+        Storage::disk('local')->put($path, $square ?? file_get_contents($file->getRealPath()));
+
+        if ($user->avatar_path) {
+            Storage::disk('local')->delete($user->avatar_path);
+        }
+        $user->update(['avatar_path' => $path]);
+
+        return back()->with('ok', 'Foto de perfil guardada.');
+    }
+
+    /** Muestra la foto de alguien del mismo consultorio. */
+    public function showAvatar(Request $request, User $user)
+    {
+        abort_unless($user->clinic_id === $request->user()->clinic_id && $user->avatar_path, 404);
+        abort_unless(Storage::disk('local')->exists($user->avatar_path), 404);
+
+        return Storage::disk('local')->response($user->avatar_path, null, ['Cache-Control' => 'private, max-age=604800']);
+    }
+
+    /** Recorta al centro y reduce a 256x256. Null si el servidor no tiene GD (entonces se guarda la original). */
+    private static function squareJpeg(string $path): ?string
+    {
+        if (! function_exists('imagecreatefromstring') || ! ($src = @imagecreatefromstring((string) file_get_contents($path)))) {
+            return null;
+        }
+        $w = imagesx($src);
+        $h = imagesy($src);
+        $side = min($w, $h);
+        $out = imagecreatetruecolor(256, 256);
+        imagefill($out, 0, 0, imagecolorallocate($out, 255, 255, 255));
+        imagecopyresampled($out, $src, 0, 0, (int) (($w - $side) / 2), (int) (($h - $side) / 2), 256, 256, $side, $side);
+        ob_start();
+        imagejpeg($out, null, 86);
+        $data = (string) ob_get_clean();
+        imagedestroy($src);
+        imagedestroy($out);
+
+        return $data;
     }
 
     public function storeUser(Request $request): RedirectResponse

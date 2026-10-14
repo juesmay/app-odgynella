@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\CashSession;
 use App\Models\Expense;
+use App\Models\ExpenseCategory;
 use App\Models\Sede;
 use App\Support\CurrentSede;
 use App\Support\Time;
@@ -16,8 +17,8 @@ use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
- * Gastos. Los registra cualquiera del equipo. La asistente solo ve los que ella registró
- * (y nunca la nómina); la doctora ve todos y es la única que anula.
+ * Gastos por tipo (consultorio, negocio, personal) y categoría. Los registra cualquiera del equipo.
+ * La asistente solo ve los que ella registró, nunca los personales ni la nómina; la doctora ve todos y es la única que anula.
  */
 class ExpenseController extends Controller
 {
@@ -26,14 +27,15 @@ class ExpenseController extends Controller
         $user = $request->user();
         $month = self::month($request->input('mes'));
 
-        $query = Expense::with(['sede', 'author'])
+        $query = Expense::with(['sede', 'author', 'patient'])
             ->whereDate('spent_on', '>=', $month->copy()->startOfMonth()->toDateString())->whereDate('spent_on', '<=', $month->copy()->endOfMonth()->toDateString())
             ->latest('spent_on')->latest('id');
 
         if (! $user->isDoctor()) {
-            $query->where('created_by', $user->id)->whereNotIn('category', Expense::PRIVATE_CATEGORIES);
+            $query->where('created_by', $user->id)->visibleToAssistant();
         } else {
-            $query->when($request->filled('categoria'), fn ($q) => $q->where('category', $request->input('categoria')))
+            $query->when(array_key_exists((string) $request->input('tipo'), Expense::TYPES), fn ($q) => $q->where('type', $request->input('tipo')))
+                ->when($request->filled('categoria'), fn ($q) => $q->where('category', $request->input('categoria')))
                 ->when($request->filled('sede'), fn ($q) => $q->where('sede_id', $request->integer('sede')));
         }
 
@@ -45,10 +47,24 @@ class ExpenseController extends Controller
             'month' => $month,
             'total' => (int) $valid->sum('amount'),
             'byCategory' => $valid->groupBy('category')->map->sum('amount')->sortDesc(),
+            'byType' => collect(Expense::TYPES)->map(fn ($l, $t) => (int) $valid->where('type', $t)->sum('amount')),
             'sedes' => Sede::orderBy('id')->get(),
             'currentSede' => CurrentSede::get(),
-            'categories' => $user->isDoctor() ? Expense::CATEGORIES : array_values(array_diff(Expense::CATEGORIES, Expense::PRIVATE_CATEGORIES)),
+            'categories' => self::categoriesFor($user),
         ]);
+    }
+
+    /**
+     * Categorías activas que puede usar la persona, agrupadas por tipo.
+     *
+     * @return \Illuminate\Support\Collection<string, \Illuminate\Support\Collection<int, ExpenseCategory>>
+     */
+    public static function categoriesFor($user)
+    {
+        return ExpenseCategory::where('active', true)->orderBy('name')->get()
+            ->reject(fn ($c) => ! $user->isDoctor() && $c->hiddenFromAssistant())
+            ->sortBy(fn ($c) => array_search($c->type, array_keys(Expense::TYPES), true))
+            ->groupBy('type')->toBase();
     }
 
     public function store(Request $request): RedirectResponse
@@ -61,11 +77,18 @@ class ExpenseController extends Controller
             $request->merge(['sede_id' => CurrentSede::get()?->id]);
         }
 
-        $categories = $user->isDoctor() ? Expense::CATEGORIES : array_diff(Expense::CATEGORIES, Expense::PRIVATE_CATEGORIES);
+        // Categoría por id (formulario) o por nombre.
+        $category = $request->filled('category_id')
+            ? ExpenseCategory::where('active', true)->find($request->integer('category_id'))
+            : ExpenseCategory::where('active', true)->where('name', (string) $request->input('category'))
+                ->orderByRaw("case type when 'consultorio' then 0 when 'negocio' then 1 else 2 end")->first();
+        if (! $category || (! $user->isDoctor() && $category->hiddenFromAssistant())) {
+            return back()->withInput()->withErrors([$request->filled('category_id') ? 'category_id' : 'category' => 'Elige una categoría de la lista.']);
+        }
 
         $data = $request->validate([
             'spent_on' => ['required', 'date', 'before_or_equal:today'],
-            'category' => ['required', Rule::in($categories)],
+            'patient_id' => ['nullable', Rule::exists('patients', 'id')->where('clinic_id', $user->clinic_id)],
             'amount' => ['required', 'integer', 'min:1', 'max:500000000'],
             'method' => ['required', Rule::in(Expense::METHODS)],
             'sede_id' => ['nullable', Rule::exists('sedes', 'id')->where('clinic_id', $user->clinic_id)],
@@ -77,8 +100,10 @@ class ExpenseController extends Controller
             'spent_on.before_or_equal' => 'La fecha no puede ser futura.',
             'support.mimes' => 'El soporte debe ser una foto o un PDF.',
             'support.max' => 'El soporte puede pesar máximo 10 MB.',
-        ], ['spent_on' => 'fecha', 'category' => 'categoría', 'amount' => 'valor', 'method' => 'medio de pago', 'detail' => 'detalle', 'supplier' => 'proveedor']);
+        ], ['spent_on' => 'fecha', 'patient_id' => 'paciente', 'amount' => 'valor', 'method' => 'medio de pago', 'detail' => 'detalle', 'supplier' => 'proveedor']);
 
+        $data['category'] = $category->name;
+        $data['type'] = $category->type;
         $data['cash_session_id'] = null;
         if ($data['method'] === 'Efectivo de la caja') {
             $session = $data['sede_id'] ? CashSession::openFor((int) $data['sede_id']) : null;
@@ -96,7 +121,11 @@ class ExpenseController extends Controller
             $data['support_path'] = $request->file('support')->store('expenses/'.$user->clinic_id, 'local');
         }
 
-        Expense::create([...$data, 'created_by' => $user->id]);
+        $expense = Expense::create([...$data, 'created_by' => $user->id]);
+
+        if ($request->input('volver') === 'paciente' && $expense->patient_id) {
+            return redirect()->route('patients.account', $expense->patient_id)->with('ok', 'Costo de '.Time::money($expense->amount).' agregado al paciente.');
+        }
 
         return redirect()->route('expenses.index', ['mes' => Carbon::parse($data['spent_on'])->format('Y-m')])
             ->with('ok', 'Gasto de '.Time::money($data['amount']).' registrado'.($data['cash_session_id'] ? ' y descontado de la caja.' : '.'));

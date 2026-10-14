@@ -9,10 +9,10 @@ class Sede extends Model
 {
     use BelongsToClinic;
 
-    protected $fillable = ['clinic_id', 'name', 'address', 'active'];
+    protected $fillable = ['clinic_id', 'name', 'address', 'active', 'hourly_rate'];
 
     protected function casts(): array
     {
-        return ['active' => 'boolean'];
+        return ['active' => 'boolean', 'hourly_rate' => 'integer'];
     }
 }

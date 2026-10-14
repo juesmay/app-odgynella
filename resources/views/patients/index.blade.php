@@ -13,16 +13,19 @@
     </div>
 </div>
 
+@include('partials.sede-filter')
+
 <div class="tabs" role="tablist">
-    <a class="tab" role="tab" aria-selected="{{ $stage ? 'false' : 'true' }}" href="{{ route('patients.index', array_filter(['q' => $q])) }}" style="text-decoration:none">Todos · {{ $counts->sum() }}</a>
+    <a class="tab" role="tab" aria-selected="{{ $stage ? 'false' : 'true' }}" href="{{ route('patients.index', array_filter(['q' => $q, 'sedes' => request('sedes')])) }}" style="text-decoration:none">Todos · {{ $counts->sum() }}</a>
     @foreach (\App\Models\Patient::STAGES as $key => [$label])
-        <a class="tab" role="tab" aria-selected="{{ $stage === $key ? 'true' : 'false' }}" href="{{ route('patients.index', array_filter(['etapa' => $key, 'q' => $q])) }}" style="text-decoration:none">{{ $label }} · {{ $counts[$key] ?? 0 }}</a>
+        <a class="tab" role="tab" aria-selected="{{ $stage === $key ? 'true' : 'false' }}" href="{{ route('patients.index', array_filter(['etapa' => $key, 'q' => $q, 'sedes' => request('sedes')])) }}" style="text-decoration:none">{{ $label }} · {{ $counts[$key] ?? 0 }}</a>
     @endforeach
 </div>
 
 <div class="card">
     <form method="GET" action="{{ route('patients.index') }}" class="row">
         @if ($stage)<input type="hidden" name="etapa" value="{{ $stage }}">@endif
+        @if (request('sedes') === 'todas')<input type="hidden" name="sedes" value="todas">@endif
         <label class="field" for="q" style="flex:1"><span>Buscar por nombre, documento o WhatsApp</span>
             <input id="q" name="q" type="search" class="input" value="{{ $q }}" placeholder="Ej: Laura o 300…" autocomplete="off">
         </label>
@@ -34,14 +37,20 @@
             <a class="rowbtn" href="{{ route('patients.show', $p) }}">
                 <div style="flex:1;min-width:180px">
                     <strong>{{ $p->name }}</strong>
-                    <div class="muted small">{{ $p->documentLabel() }}{{ $p->city ? ' · '.$p->city : '' }}</div>
+                    <div class="muted small">{{ $p->documentLabel() }}{{ $p->city ? ' · '.$p->city : '' }}@if (! $sedeFilter && $p->sede) · <strong>{{ $p->sede->name }}</strong>@endif</div>
                 </div>
                 @if ($p->alerts())<span class="chip c-alert">Alerta médica</span>@endif
                 <span class="chip {{ $p->stageClass() }}">{{ $p->stageLabel() }}</span>
                 <span class="small muted">{{ $p->phoneLabel() }}{{ $p->historical ? ' · histórico' : '' }}</span>
             </a>
         @empty
-            <div class="empty">{{ $q !== '' ? 'Nadie coincide con “'.$q.'”.' : 'No hay personas en esta etapa.' }} <a href="{{ route('quotes.create') }}">Hacer una cotización</a></div>
+            <div class="empty">
+                {{ $q !== '' ? 'Nadie coincide con “'.$q.'” en esta sede.' : 'No hay personas en esta etapa.' }}
+                @if ($elsewhere)
+                    <a href="{{ request()->fullUrlWithQuery(['sedes' => 'todas']) }}">Hay {{ $elsewhere }} en otras sedes</a> ·
+                @endif
+                <a href="{{ route('quotes.create') }}">Hacer una cotización</a>
+            </div>
         @endforelse
     </div>
     <div style="margin-top:12px">{{ $patients->links('partials.pager') }}</div>

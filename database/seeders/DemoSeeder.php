@@ -41,6 +41,10 @@ class DemoSeeder extends Seeder
     /** @var array<string, Sede> */
     private array $sedes = [];
 
+    private string $amalgam = '';
+
+    private ?\App\Models\OrderTemplate $postOpTemplate = null;
+
     /** @var array<string, Service> */
     private array $services = [];
 
@@ -67,8 +71,28 @@ class DemoSeeder extends Seeder
             '4' => $s('Sabaneta'), '5' => $s('Envigado'), '6' => $s('Bucaramanga'),
         ]]);
 
+        // Configuración clínica de ejemplo: un hallazgo propio y una plantilla de orden.
+        $this->amalgam = \App\Models\OdontogramFinding::create(['clinic_id' => $this->clinic->id, 'name' => 'Amalgama en mal estado', 'abbr' => 'AM', 'faces' => true, 'color' => '#6B7280'])->key();
+        $this->postOpTemplate = \App\Models\OrderTemplate::create(['clinic_id' => $this->clinic->id, 'title' => 'Indicaciones después del procedimiento',
+            'body' => "1. No comer ni beber nada caliente por 2 horas.\n2. Evitar alimentos duros o pegajosos por 48 horas.\n3. Acetaminofén 500 mg, 1 tableta cada 8 horas si hay molestia.\n4. Si hay sangrado que no para, dolor fuerte o inflamación, escribir al WhatsApp del consultorio."]);
+
+        // Tarifa del consultorio por hora en cada sede.
+        $this->sedes['Envigado']->update(['hourly_rate' => 35000]);
+        $this->sedes['Sabaneta']->update(['hourly_rate' => 30000]);
+
         $this->patients();
         $this->expenses();
+
+        // Tiempo de consultorio de las citas atendidas, como costo de cada paciente.
+        foreach (Appointment::where('clinic_id', $this->clinic->id)->where('status', 'atendida')->get() as $a) {
+            \App\Support\PatientCosts::recordRoomTime($a, $this->doctor);
+        }
+
+        // Cada paciente queda en la sede de su última cita (los demás, en Envigado).
+        foreach (Patient::where('clinic_id', $this->clinic->id)->where('name', 'like', '%(ejemplo)%')->get() as $p) {
+            $last = Appointment::where('patient_id', $p->id)->orderByDesc('date')->orderByDesc('id')->value('sede_id');
+            $p->forceFill(['sede_id' => $last ?? $this->sedes['Envigado']->id])->saveQuietly();
+        }
     }
 
     // ------------------------------------------------------------------
@@ -90,8 +114,9 @@ class DemoSeeder extends Seeder
         $this->pay($maria, $q, 500000, 50, 'Transferencia');
         $this->diagnose($maria, [['K02.1', 'Caries de la dentina', '36'], ['K05.1', 'Gingivitis crónica', null], ['K08.1', 'Pérdida de dientes por extracción', '46']]);
         $this->teeth($maria, [
-            36 => [[['type' => 'caries', 'surfaces' => ['O', 'D']]], 'Caries ocluso distal profunda'],
-            46 => [[['type' => 'ausente', 'surfaces' => []]], 'Perdido hace 5 años'],
+            36 => [[['type' => 'caries', 'surfaces' => ['O', 'D']]], 'Caries ocluso distal profunda', ['Resina']],
+            16 => [[['type' => $this->amalgam, 'surfaces' => ['O']]], null, ['Resina']],
+            46 => [[['type' => 'ausente', 'surfaces' => []]], 'Perdido hace 5 años', ['Prótesis']],
             11 => [[['type' => 'obturacion', 'surfaces' => ['M']], ['type' => 'fractura', 'surfaces' => ['O']]], 'Fractura del borde incisal'],
             21 => [[['type' => 'obturacion', 'surfaces' => ['M', 'V']]], null],
             26 => [[['type' => 'endodoncia', 'surfaces' => []], ['type' => 'corona', 'surfaces' => []]], 'Corona en buen estado'],
@@ -113,6 +138,7 @@ class DemoSeeder extends Seeder
         $this->photo($maria, 'despues', 40, 'demo-despues.jpg', 'Después de la prótesis');
         $this->consent($maria, 74);
         $this->order($maria, 76, [['Radiografía panorámica', null, 1], ['Radiografía periapical', '36, 46', 2]], 'Valoración para plan de rehabilitación.', 'correo_doctora');
+        $this->freeOrder($maria, 44, $this->postOpTemplate);
         $this->appointment($maria, 'Microdiseño', $today, '16:00', 'confirmada');
 
         // 2. Valoración presencial hoy, en sala. Alergia: sale la alerta roja.
@@ -268,6 +294,9 @@ class DemoSeeder extends Seeder
             ['Laboratorio dental', 650000, 'Coronas en zirconio', $env, 4],
             ['Publicidad', 300000, 'Pauta en Instagram', null, 5],
             ['Servicios públicos', 185000, 'Energía y agua', $env, 6],
+            ['Alimentación', 380000, 'Mercado', null, 2],
+            ['Hogar', 250000, 'Internet y servicios de la casa', null, 4],
+            ['Cuidado personal', 120000, 'Peluquería', null, 5],
         ];
         foreach ($thisMonth as [$cat, $amount, $detail, $sede, $day]) {
             $this->expense($cat, $amount, $detail, $sede, $this->thisMonth($day));
@@ -383,8 +412,10 @@ class DemoSeeder extends Seeder
 
     private function teeth(Patient $p, array $teeth): void
     {
-        foreach ($teeth as $tooth => [$findings, $note]) {
-            $p->teeth()->create(['tooth' => $tooth, 'findings' => $findings, 'note' => $note, 'updated_by' => $this->doctor->id]);
+        foreach ($teeth as $tooth => $row) {
+            [$findings, $note] = $row;
+            $plan = array_map(fn ($name) => ['service_id' => $this->services[$name]->id ?? null, 'name' => $name], $row[2] ?? []);
+            $p->teeth()->create(['tooth' => $tooth, 'findings' => $findings, 'plan' => $plan ?: null, 'note' => $note, 'updated_by' => $this->doctor->id]);
         }
     }
 
@@ -429,6 +460,16 @@ class DemoSeeder extends Seeder
             'issued_on' => today()->subDays($daysAgo), 'center' => ($this->clinic->radiology_centers ?? [])[0] ?? null,
             'studies' => array_map(fn ($s) => ['name' => $s[0], 'zone' => $s[1], 'qty' => $s[2]], $studies),
             'indication' => $indication, 'delivery' => $delivery, 'created_by' => $this->doctor->id,
+        ]);
+        $this->clinic->increment('next_order');
+    }
+
+    private function freeOrder(Patient $p, int $daysAgo, \App\Models\OrderTemplate $t): void
+    {
+        $this->clinic->refresh();
+        RadiologyOrder::create([
+            'clinic_id' => $this->clinic->id, 'patient_id' => $p->id, 'number' => $this->clinic->next_order, 'kind' => 'libre',
+            'title' => $t->title, 'body' => $t->body, 'issued_on' => today()->subDays($daysAgo), 'created_by' => $this->doctor->id,
         ]);
         $this->clinic->increment('next_order');
     }

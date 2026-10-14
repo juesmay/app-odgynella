@@ -322,3 +322,49 @@ a.li.voided{text-decoration:line-through;color:var(--ink-3)}
 .face.f-mancha_blanca,.sw.f-mancha_blanca{fill:#E9B8C8;background:#E9B8C8}
 .idx{display:flex;flex-wrap:wrap;gap:10px 24px;padding:10px 12px;background:var(--surface-2);border-radius:10px}
 .idx b{font-size:18px;margin:0 6px}
+
+/* Sede que se está viendo en las listas */
+.sedebar{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;margin:0 0 14px;padding:8px 14px;border-radius:10px;background:var(--accent-soft);color:var(--ink-2);font-size:.92rem}
+.sedebar a{font-weight:600}
+
+/* Barra fija para guardar una página larga (historia clínica) */
+.savebar{position:sticky;bottom:0;z-index:5;display:flex;align-items:center;gap:12px;margin-top:20px;padding:12px 16px;border:1px solid var(--line);border-radius:12px;background:var(--surface);box-shadow:0 -6px 18px rgba(43,29,23,.08)}
+.savebar .sp{flex:1}
+.savebar.dirty{border-color:var(--warn);background:var(--warn-soft)}
+.savebar.dirty #save-state{color:var(--warn);font-weight:600}
+
+/* Odontograma: tratamiento indicado por diente */
+.tooth2.planned{background:var(--accent-soft)}
+.tooth2 .tx{display:block;width:22px;height:4px;border-radius:2px;background:var(--accent);margin-top:1px;font-size:0;overflow:hidden}
+.tx-sw{display:inline-block;width:18px;height:5px;border-radius:2px;background:var(--accent);font-size:0;margin-right:2px}
+.plan-list{display:flex;flex-wrap:wrap;gap:6px}
+.plan-chip{display:inline-flex;align-items:center;gap:6px;padding:5px 6px 5px 10px;border-radius:999px;background:var(--accent-soft);color:var(--ink);font-weight:600;font-size:.9rem}
+.plan-chip button{border:0;background:transparent;color:var(--ink-3);font-size:16px;line-height:1;cursor:pointer;padding:0 4px;border-radius:50%}
+.plan-chip button:hover{color:var(--danger)}
+.finding .sw{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-1px}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+
+/* Configuración: categorías de gasto en tres columnas */
+.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}
+@media (max-width:1000px){.grid3{grid-template-columns:minmax(0,1fr)}}
+.catrow{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;padding:6px 0;border-bottom:1px solid var(--line)}
+.catrow .input{flex:1 1 140px;min-width:0;padding-top:7px;padding-bottom:7px}
+.catrow.off .input{opacity:.55}
+
+/* Reportes: utilidad del negocio − personales = lo que queda */
+.finance{display:flex;flex-wrap:wrap;align-items:stretch;gap:10px}
+.fin-step{flex:1 1 180px;display:flex;flex-direction:column;gap:4px;padding:12px 14px;border-radius:10px;background:var(--surface-2)}
+.fin-step span{font-size:.85rem;color:var(--ink-3);font-weight:600}
+.fin-step b{font-size:1.45rem;color:var(--ink)}
+.fin-step small{font-size:.8rem;color:var(--ink-3)}
+.fin-step.total{background:var(--accent-soft)}
+.fin-step.total b{color:var(--accent)}
+.fin-step.neg b{color:var(--danger)}
+.fin-op{align-self:center;font-size:1.6rem;font-weight:700;color:var(--ink-3)}
+@media (max-width:700px){.fin-op{display:none}}
+.stats.sm{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}.stats.sm .v{font-size:1.3rem}.stats.sm .stat{padding:14px 16px}
+
+/* Foto de perfil */
+.avatar{display:inline-flex;align-items:center;justify-content:center;flex:none;border-radius:50%;object-fit:cover;background:var(--accent-soft);color:var(--accent);font-weight:800;letter-spacing:.02em;border:2px solid var(--surface);box-shadow:0 0 0 1px var(--line)}
+.top .me{display:inline-flex;margin-right:12px;text-decoration:none}
+.top .me:hover .avatar{box-shadow:0 0 0 2px var(--accent)}

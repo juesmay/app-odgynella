@@ -6,7 +6,7 @@
         <h1 style="margin-top:6px">{{ $patient->name }}</h1>
         <p class="sub">
             {{ $patient->age() !== null ? $patient->age().' años · ' : '' }}{{ $patient->documentLabel() }}
-            {{ $patient->city ? '· '.$patient->city : '' }} · @if ($patient->phone)WhatsApp {{ $patient->phone }}@else<span class="chip c-noshow" style="padding:2px 8px">Sin WhatsApp</span>@endif
+            {{ $patient->city ? '· '.$patient->city : '' }}{{ $patient->sede ? ' · Sede '.$patient->sede->name : '' }} · @if ($patient->phone)WhatsApp {{ $patient->phone }}@else<span class="chip c-noshow" style="padding:2px 8px">Sin WhatsApp</span>@endif
         </p>
     </div>
     <div class="row">
@@ -23,6 +23,13 @@
         <span>Está en cotización. Para atenderla en persona faltan el documento y la autorización de datos.</span>
         <span class="sp"></span>
         <a class="btn sm" href="{{ route('patients.complete', $patient) }}">Completar y agendar valoración</a>
+    </div>
+@elseif ($patient->stage === 'en_pausa')
+    <div class="infobar">
+        <span>En pausa{{ $patient->lost_reason ? ': '.$patient->lost_reason : '' }}{{ $patient->stage_changed_at ? ' (desde el '.$patient->stage_changed_at->translatedFormat('j M Y').')' : '' }}. Su saldo está congelado.</span>
+        <span class="sp"></span>
+        <form method="POST" action="{{ route('patients.resume', $patient) }}">@csrf<button class="btn sm">Retomar el mismo plan</button></form>
+        <a class="btn sm pri" href="{{ route('quotes.create', ['paciente' => $patient->id, 'retomar' => 1]) }}">Retomar con cotización nueva</a>
     </div>
 @elseif ($patient->stage === 'no_continuo')
     <div class="infobar">

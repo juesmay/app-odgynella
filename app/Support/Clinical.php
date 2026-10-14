@@ -249,10 +249,42 @@ class Clinical
         ];
     }
 
+    /**
+     * Hallazgos del sistema más los que creó la doctora en Configuración (clave "x{id}").
+     * Con $onlyActive se omiten los propios que ella desactivó (siguen describiéndose en los dientes que ya los tienen).
+     *
+     * @return array<string, array{name: string, faces: bool, abbr: string, kids?: bool, color?: string, custom?: bool, active?: bool}>
+     */
+    public static function findings(bool $onlyActive = false): array
+    {
+        $key = 'clinical.findings';
+        if (! app()->bound($key)) {
+            $custom = [];
+            if (auth()->check()) {
+                foreach (\App\Models\OdontogramFinding::orderBy('name')->get() as $f) {
+                    $custom[$f->key()] = [
+                        'name' => $f->name, 'faces' => $f->faces, 'abbr' => $f->abbr,
+                        'color' => $f->color, 'custom' => true, 'active' => $f->active,
+                    ];
+                }
+            }
+            app()->instance($key, self::FINDINGS + $custom);
+        }
+        $all = app($key);
+
+        return $onlyActive ? array_filter($all, fn ($f) => ($f['active'] ?? true)) : $all;
+    }
+
+    /** Olvida los hallazgos leídos (después de crear o editar uno). */
+    public static function forgetFindings(): void
+    {
+        app()->forgetInstance('clinical.findings');
+    }
+
     /** "caries O-D" a partir de un hallazgo guardado. */
     public static function describeFinding(array $f): string
     {
-        $name = self::FINDINGS[$f['type']]['name'] ?? $f['type'];
+        $name = self::findings()[$f['type']]['name'] ?? $f['type'];
         $faces = $f['surfaces'] ?? [];
 
         return $faces ? $name.' '.implode('-', $faces) : $name;

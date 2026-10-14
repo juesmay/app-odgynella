@@ -36,10 +36,12 @@ class Accounts
      *
      * @return Collection<int, array{patient: Patient, quote: Quote, account: array, since: Carbon, days: int, bucket: string}>
      */
-    public static function receivables(): Collection
+    public static function receivables(?int $sedeId = null): Collection
     {
         return Quote::with(['patient', 'items', 'payments'])
             ->where('status', 'aceptada')
+            ->whereNull('paused_at') // en pausa: el cobro queda congelado
+            ->when($sedeId, fn ($q) => $q->whereHas('patient', fn ($p) => $p->where('sede_id', $sedeId)))
             ->whereHas('items', fn ($q) => $q->whereNotNull('done_at'))
             ->get()
             ->map(function (Quote $q) {
@@ -64,6 +66,21 @@ class Accounts
             })
             ->filter()
             ->sortByDesc('days')
+            ->values();
+    }
+
+    /**
+     * Tratamientos en pausa con algo hecho sin pagar: no se cobran mientras tanto.
+     *
+     * @return Collection<int, array{patient: Patient, quote: Quote, owed: int}>
+     */
+    public static function paused(?int $sedeId = null): Collection
+    {
+        return Quote::with(['patient', 'items', 'payments'])
+            ->where('status', 'aceptada')->whereNotNull('paused_at')->whereNull('closed_at')
+            ->when($sedeId, fn ($q) => $q->whereHas('patient', fn ($p) => $p->where('sede_id', $sedeId)))
+            ->get()
+            ->map(fn (Quote $q) => ['patient' => $q->patient, 'quote' => $q, 'owed' => $q->owed()])
             ->values();
     }
 

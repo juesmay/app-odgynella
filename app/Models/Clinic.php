@@ -14,6 +14,12 @@ class Clinic extends Model
         'logo_path', 'signature', 'radiology_centers', 'payment_note', 'next_order',
     ];
 
+    /** Cada clínica nueva arranca con las categorías de gasto por defecto. */
+    protected static function booted(): void
+    {
+        static::created(fn (Clinic $c) => ExpenseCategory::seedDefaults($c->id));
+    }
+
     protected function casts(): array
     {
         return ['schedule' => 'array', 'radiology_centers' => 'array'];

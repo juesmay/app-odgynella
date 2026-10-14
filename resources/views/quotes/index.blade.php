@@ -11,9 +11,11 @@
     <a class="btn pri" href="{{ route('quotes.create') }}">Nueva cotización</a>
 </div>
 
+@include('partials.sede-filter')
+
 <div class="tabs" role="tablist">
     @foreach (['vigentes' => 'Vigentes', 'vencidas' => 'Vencidas', 'aceptadas' => 'Aceptadas', 'no_aceptadas' => 'No aceptadas', 'todas' => 'Todas'] as $key => $label)
-        <a class="tab" role="tab" aria-selected="{{ $filter === $key ? 'true' : 'false' }}" href="{{ route('quotes.index', ['estado' => $key]) }}" style="text-decoration:none">{{ $label }}</a>
+        <a class="tab" role="tab" aria-selected="{{ $filter === $key ? 'true' : 'false' }}" href="{{ route('quotes.index', array_filter(['estado' => $key, 'sedes' => request('sedes')])) }}" style="text-decoration:none">{{ $label }}</a>
     @endforeach
 </div>
 

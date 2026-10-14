@@ -6,6 +6,7 @@ use App\Http\Controllers\AgendaController;
 use App\Http\Controllers\AppointmentController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\CashController;
+use App\Http\Controllers\ClinicalSettingsController;
 use App\Http\Controllers\ConsentController;
 use App\Http\Controllers\EvolutionController;
 use App\Http\Controllers\ExpenseController;
@@ -31,6 +32,8 @@ Route::middleware(['auth', 'account'])->group(function () {
     Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
     Route::get('/mi-cuenta', [AccountSettingsController::class, 'show'])->name('account');
     Route::put('/mi-cuenta/clave', [AccountSettingsController::class, 'password'])->middleware('throttle:10,1')->name('account.password');
+    Route::post('/mi-cuenta/foto', [AccountSettingsController::class, 'avatar'])->middleware('throttle:20,1')->name('account.avatar');
+    Route::get('/usuarios/{user}/foto', [AccountSettingsController::class, 'showAvatar'])->name('users.avatar');
     Route::post('/sede', [SedeController::class, 'switch'])->name('sede.switch');
 
     Route::get('/', [TodayController::class, 'index'])->name('today');
@@ -51,6 +54,8 @@ Route::middleware(['auth', 'account'])->group(function () {
     Route::put('/pacientes/{patient}/completar', [PatientController::class, 'completeStore'])->name('patients.complete.store');
     Route::post('/pacientes/{patient}/no-continuo', [PatientController::class, 'lost'])->name('patients.lost');
     Route::post('/pacientes/{patient}/reactivar', [PatientController::class, 'reactivate'])->name('patients.reactivate');
+    Route::post('/pacientes/{patient}/pausa', [PatientController::class, 'pause'])->name('patients.pause');
+    Route::post('/pacientes/{patient}/retomar', [PatientController::class, 'resume'])->name('patients.resume');
 
     // Historia clínica (fase 2). Ver: todo el equipo. Escribir lo clínico: solo la doctora.
     Route::get('/pacientes/{patient}/historia', [HistoryController::class, 'show'])->name('patients.clinical');
@@ -119,5 +124,13 @@ Route::middleware(['auth', 'account'])->group(function () {
         Route::get('/configuracion/logo', [SettingsController::class, 'logo'])->name('settings.logo');
         Route::post('/configuracion/consentimientos', [SettingsController::class, 'storeTemplate'])->name('settings.templates.store');
         Route::put('/configuracion/consentimientos/{template}', [SettingsController::class, 'updateTemplate'])->name('settings.templates.update');
+        Route::post('/configuracion/hallazgos', [ClinicalSettingsController::class, 'storeFinding'])->name('settings.findings.store');
+        Route::put('/configuracion/hallazgos/{finding}', [ClinicalSettingsController::class, 'updateFinding'])->name('settings.findings.update');
+        Route::post('/configuracion/plantillas-ordenes', [ClinicalSettingsController::class, 'storeOrderTemplate'])->name('settings.order-templates.store');
+        Route::put('/configuracion/plantillas-ordenes/{template}', [ClinicalSettingsController::class, 'updateOrderTemplate'])->name('settings.order-templates.update');
+        Route::delete('/configuracion/plantillas-ordenes/{template}', [ClinicalSettingsController::class, 'destroyOrderTemplate'])->name('settings.order-templates.destroy');
+        Route::post('/configuracion/categorias-gasto', [ClinicalSettingsController::class, 'storeCategory'])->name('settings.categories.store');
+        Route::put('/configuracion/categorias-gasto/{category}', [ClinicalSettingsController::class, 'updateCategory'])->name('settings.categories.update');
+        Route::put('/configuracion/tarifas', [ClinicalSettingsController::class, 'rates'])->name('settings.rates');
     });
 });

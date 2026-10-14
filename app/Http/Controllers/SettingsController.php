@@ -3,6 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\ConsentTemplate;
+use App\Models\ExpenseCategory;
+use App\Models\OdontogramFinding;
+use App\Models\OrderTemplate;
 use App\Models\Sede;
 use App\Models\Service;
 use App\Support\Brand;
@@ -23,6 +26,9 @@ class SettingsController extends Controller
             'sedes' => Sede::orderBy('id')->get(),
             'clinic' => auth()->user()->clinic,
             'templates' => ConsentTemplate::orderBy('name')->get(),
+            'findings' => OdontogramFinding::orderBy('name')->get(),
+            'orderTemplates' => OrderTemplate::orderBy('title')->get(),
+            'expenseCategories' => ExpenseCategory::orderBy('name')->get()->groupBy('type'),
         ]);
     }
 

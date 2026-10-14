@@ -6,7 +6,11 @@ use App\Models\Concerns\BelongsToClinic;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-/** Orden de estudios radiográficos para un centro radiológico. */
+/**
+ * Orden de la doctora. Dos tipos:
+ *  - radiologia: estudios para un centro radiológico (lista de estudios, centro y entrega).
+ *  - libre: orden en blanco que ella escribe (receta, laboratorio, remisión, indicaciones…).
+ */
 class RadiologyOrder extends Model
 {
     use BelongsToClinic;
@@ -32,8 +36,13 @@ class RadiologyOrder extends Model
         'virtual_paciente' => 'Enviar los resultados al correo del paciente',
     ];
 
+    public const KINDS = [
+        'radiologia' => 'Radiografía',
+        'libre' => 'En blanco',
+    ];
+
     protected $fillable = [
-        'clinic_id', 'patient_id', 'number', 'issued_on', 'center', 'studies',
+        'clinic_id', 'patient_id', 'number', 'kind', 'title', 'body', 'issued_on', 'center', 'studies',
         'indication', 'delivery', 'notes', 'created_by',
     ];
 
@@ -57,16 +66,25 @@ class RadiologyOrder extends Model
 
     public function code(): string
     {
-        return 'RX-'.str_pad((string) $this->number, 5, '0', STR_PAD_LEFT);
+        return ($this->isFree() ? 'OR-' : 'RX-').str_pad((string) $this->number, 5, '0', STR_PAD_LEFT);
+    }
+
+    public function isFree(): bool
+    {
+        return $this->kind === 'libre';
     }
 
     public function deliveryLabel(): string
     {
-        return self::DELIVERY[$this->delivery] ?? $this->delivery;
+        return self::DELIVERY[$this->delivery] ?? (string) $this->delivery;
     }
 
     public function summary(): string
     {
+        if ($this->isFree()) {
+            return $this->title;
+        }
+
         return collect($this->studies)->map(fn ($s) => $s['name'].($s['zone'] ? ' ('.$s['zone'].')' : ''))->implode(', ');
     }
 }

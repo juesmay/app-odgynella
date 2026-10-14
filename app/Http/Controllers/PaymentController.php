@@ -22,7 +22,7 @@ class PaymentController extends Controller
         $sede = CurrentSede::get();
 
         // Planes con saldo por paciente, para el selector "Aplicar a".
-        $plans = Quote::with(['items', 'payments'])->where('status', 'aceptada')->get()
+        $plans = Quote::with(['items', 'payments'])->where('status', 'aceptada')->whereNull('paused_at')->get()
             ->map(fn (Quote $q) => ['patient' => $q->patient_id, 'id' => $q->id, 'code' => $q->code()] + $q->account())
             ->filter(fn ($a) => $a['balance'] > 0)
             ->groupBy('patient');
@@ -58,6 +58,9 @@ class PaymentController extends Controller
 
             if (! $quote || $quote->status !== 'aceptada') {
                 return back()->withInput()->withErrors(['quote_id' => 'Ese tratamiento no es de este paciente o no está aceptado.']);
+            }
+            if ($quote->isPaused()) {
+                return back()->withInput()->withErrors(['quote_id' => 'Ese tratamiento está en pausa. Retómalo primero desde la ficha del paciente.']);
             }
             if ($data['amount'] > $quote->balance()) {
                 return back()->withInput()->withErrors(['amount' => 'El saldo de '.$quote->code().' es '.Time::money($quote->balance()).'. Si paga más, registra la diferencia aparte con otro concepto.']);

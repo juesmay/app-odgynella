@@ -2,8 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Expense;
 use App\Models\Patient;
 use App\Support\Accounts;
+use App\Support\CurrentSede;
+use App\Support\PatientCosts;
 use Illuminate\View\View;
 
 /** Cuenta del paciente (pestaña de la ficha) y cartera de la clínica. */
@@ -23,8 +26,14 @@ class AccountController extends Controller
             }
         }
 
+        $isDoc = auth()->user()->isDoctor();
+
         return view('patients.account', [
             'patient' => $patient,
+            // Costos y rentabilidad: solo la doctora.
+            'costs' => $isDoc ? Expense::with('sede')->where('patient_id', $patient->id)->latest('spent_on')->latest('id')->get() : collect(),
+            'profit' => $isDoc ? PatientCosts::summary($patient) : null,
+            'costCategories' => $isDoc ? ExpenseController::categoriesFor(auth()->user())->only(['consultorio', 'negocio']) : collect(),
             'tab' => 'cuenta',
             'plans' => $plans,
             'payments' => $payments,
@@ -35,7 +44,8 @@ class AccountController extends Controller
 
     public function receivables(): View
     {
-        $rows = Accounts::receivables();
+        $sedeFilter = CurrentSede::filterId();
+        $rows = Accounts::receivables($sedeFilter);
         $clinic = auth()->user()->clinic;
 
         $rows = $rows->map(function ($r) use ($clinic) {
@@ -53,6 +63,8 @@ class AccountController extends Controller
 
         return view('receivables.index', [
             'rows' => $rows,
+            'sedeFilter' => $sedeFilter,
+            'paused' => Accounts::paused($sedeFilter),
             'buckets' => $buckets,
             'total' => (int) $rows->sum(fn ($r) => $r['account']['owed']),
         ]);

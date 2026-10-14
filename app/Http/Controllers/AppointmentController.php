@@ -7,6 +7,7 @@ use App\Models\Patient;
 use App\Models\Sede;
 use App\Models\Service;
 use App\Support\CurrentSede;
+use App\Support\PatientCosts;
 use App\Support\Scheduler;
 use App\Support\Time;
 use Carbon\CarbonImmutable;
@@ -127,7 +128,9 @@ class AppointmentController extends Controller
         }
 
         $appointment->update(['status' => $data['status']]);
+        $cost = PatientCosts::recordRoomTime($appointment, $request->user());
 
-        return back()->with('ok', $appointment->patient->firstName().': '.mb_strtolower($appointment->statusLabel()).'.');
+        return back()->with('ok', $appointment->patient->firstName().': '.mb_strtolower($appointment->statusLabel()).'.'
+            .($cost ? ' Tiempo de consultorio: '.Time::money($cost->amount).'.' : ''));
     }
 }

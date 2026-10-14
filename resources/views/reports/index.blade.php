@@ -30,9 +30,19 @@
 
 <div class="stats">
     <div class="stat"><div class="label">Entró</div><div class="v">{{ Time::money($income) }}</div><div class="d">{{ $delta($income, $prevIncome) ?? 'Pagos recibidos' }}</div></div>
-    <div class="stat"><div class="label">Salió</div><div class="v">{{ Time::money($spent) }}</div><div class="d">{{ $delta($spent, $prevSpent) ?? 'Gastos registrados' }}</div></div>
-    <div class="stat {{ $profit < 0 ? 'neg' : '' }}"><div class="label">Quedó</div><div class="v">{{ $profit < 0 ? '-' : '' }}{{ Time::money(abs($profit)) }}</div><div class="d">{{ $profit < 0 ? 'Salió más de lo que entró' : ($income ? round($profit * 100 / $income).'% de lo que entró' : 'Entró menos salió') }}</div></div>
+    <div class="stat"><div class="label">Gastos del negocio</div><div class="v">{{ Time::money($spent) }}</div><div class="d">{{ $delta($spent, $prevSpent) ?? 'Consultorio y negocio' }}</div></div>
+    <div class="stat {{ $profit < 0 ? 'neg' : '' }}"><div class="label">Utilidad del negocio</div><div class="v">{{ $profit < 0 ? '-' : '' }}{{ Time::money(abs($profit)) }}</div><div class="d">{{ $profit < 0 ? 'Salió más de lo que entró' : ($income ? round($profit * 100 / $income).'% de lo que entró' : 'Entró menos gastos') }}</div></div>
     <a class="stat" href="{{ route('receivables.index') }}" style="text-decoration:none;color:inherit"><div class="label">Me deben</div><div class="v">{{ Time::money($receivable) }}</div><div class="d">{{ $receivableOld ? Time::money($receivableOld).' con más de 60 días' : 'Cartera de hoy' }}</div></a>
+</div>
+
+<div class="card finance" style="margin-top:12px">
+    <div class="fin-step"><span>Utilidad del negocio</span><b>{{ $profit < 0 ? '-' : '' }}{{ Time::money(abs($profit)) }}</b></div>
+    <div class="fin-op">−</div>
+    <div class="fin-step"><span>Gastos personales</span><b>{{ Time::money($personalSpent) }}</b>
+        @if ($byPersonal->isNotEmpty())<small>{{ $byPersonal->map(fn ($v, $k) => $k.' '.Time::money($v))->take(3)->join(' · ') }}</small>@endif</div>
+    <div class="fin-op">=</div>
+    <div class="fin-step total {{ $kept < 0 ? 'neg' : '' }}"><span>Lo que realmente te quedó</span><b>{{ $kept < 0 ? '-' : '' }}{{ Time::money(abs($kept)) }}</b>
+        <small>{{ $kept < 0 ? 'Sacaste más de lo que dejó el negocio' : 'Después de lo que sacaste para ti' }}</small></div>
 </div>
 
 <div class="stats" style="margin-top:12px">
@@ -67,7 +77,26 @@
     </div>
 
     <div class="card">
-        <h2>Gastos por categoría</h2>
+        <h2>Ganancia por paciente</h2>
+        <p class="small muted">Lo que pagó en el mes menos lo que costó atenderlo{{ $roomTime ? ' (incluye '.Time::money($roomTime).' de tiempo de consultorio)' : '' }}.</p>
+        @if ($byPatient->isEmpty())
+            <div class="empty">Sin pagos ni costos de pacientes en el mes.</div>
+        @else
+            <div class="tblwrap"><table class="tbl compact" style="margin-top:8px">
+                <thead><tr><th>Paciente</th><th class="r">Pagó</th><th class="r">Costó</th><th class="r">Ganancia</th></tr></thead>
+                <tbody>
+                @foreach ($byPatient->take(12) as $r)
+                    <tr><td><a href="{{ route('patients.account', $r['id']) }}#costos">{{ $r['name'] }}</a></td><td class="r">{{ Time::money($r['income']) }}</td><td class="r">{{ $r['cost'] ? Time::money($r['cost']) : '—' }}</td>
+                        <td class="r" style="{{ $r['profit'] < 0 ? 'color:var(--danger)' : '' }}">{{ $r['profit'] < 0 ? '-' : '' }}{{ Time::money(abs($r['profit'])) }}</td></tr>
+                @endforeach
+                </tbody>
+            </table></div>
+            @if ($byPatient->count() > 12)<p class="small muted" style="margin-top:6px">Y {{ $byPatient->count() - 12 }} más.</p>@endif
+        @endif
+    </div>
+
+    <div class="card">
+        <h2>Gastos del negocio por categoría</h2>
         @if ($byCategory->isEmpty())
             <div class="empty">Sin gastos en el mes.</div>
         @else

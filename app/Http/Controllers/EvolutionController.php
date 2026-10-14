@@ -86,6 +86,7 @@ class EvolutionController extends Controller
 
             if ($appointment) {
                 $appointment->update(['status' => 'atendida']);
+                \App\Support\PatientCosts::recordRoomTime($appointment, $user);
             }
 
             return $evolution;

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Patient;
 use App\Models\Payment;
+use App\Support\CurrentSede;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -16,7 +17,11 @@ class PatientController extends Controller
         $q = trim((string) $request->query('q', ''));
         $stage = array_key_exists($request->query('etapa', ''), Patient::STAGES) ? $request->query('etapa') : null;
 
+        $sedeFilter = CurrentSede::filterId();
+
         $patients = Patient::query()
+            ->with('sede')
+            ->inSede($sedeFilter)
             ->when($stage, fn ($query) => $query->where('stage', $stage))
             ->when($q !== '', function ($query) use ($q) {
                 $digits = Patient::phoneKey($q);
@@ -31,14 +36,19 @@ class PatientController extends Controller
             ->paginate(30)
             ->withQueryString();
 
-        $counts = Patient::selectRaw('stage, count(*) as n')->groupBy('stage')->pluck('n', 'stage');
+        $counts = Patient::inSede($sedeFilter)->selectRaw('stage, count(*) as n')->groupBy('stage')->pluck('n', 'stage');
 
-        return view('patients.index', compact('patients', 'q', 'stage', 'counts'));
+        // Si busca a alguien y no está en esta sede, avisar cuántos hay en las demás.
+        $elsewhere = ($sedeFilter && $q !== '' && $patients->total() === 0)
+            ? Patient::where(fn ($w) => $w->where('name', 'like', "%{$q}%")->orWhere('doc_number', 'like', "%{$q}%"))->count()
+            : 0;
+
+        return view('patients.index', compact('patients', 'q', 'stage', 'counts', 'sedeFilter', 'elsewhere'));
     }
 
     public function create(): View
     {
-        return view('patients.create', ['patient' => new Patient(['city' => 'Medellín'])]);
+        return view('patients.create', ['patient' => new Patient(['city' => 'Medellín', 'sede_id' => CurrentSede::get()?->id])]);
     }
 
     public function store(Request $request): RedirectResponse
@@ -129,6 +139,34 @@ class PatientController extends Controller
         return back()->with('ok', $patient->firstName().' quedó como “no continuó”. Se puede reactivar cuando vuelva.');
     }
 
+    /**
+     * Pausa: el paciente detuvo el tratamiento. Sus planes quedan congelados: no salen en cartera
+     * ni se les registran abonos hasta que vuelva.
+     */
+    public function pause(Request $request, Patient $patient): RedirectResponse
+    {
+        $data = $request->validate([
+            'reason' => ['required', Rule::in(Patient::PAUSE_REASONS)],
+            'detail' => ['nullable', 'string', 'max:200'],
+        ], ['reason.required' => 'Elige por qué se pausa.']);
+
+        $reason = $data['reason'].(filled($data['detail'] ?? null) ? ': '.$data['detail'] : '');
+        $patient->moveTo('en_pausa', $reason);
+        $patient->plans()->whereNull('closed_at')->whereNull('paused_at')->update(['paused_at' => now()]);
+
+        return back()->with('ok', $patient->firstName().' quedó en pausa. Su saldo no aparece en cartera mientras tanto.');
+    }
+
+    /** Vuelve y sigue con el mismo plan: se descongela tal como estaba. */
+    public function resume(Patient $patient): RedirectResponse
+    {
+        abort_unless($patient->stage === 'en_pausa', 422);
+        $patient->plans()->whereNull('closed_at')->update(['paused_at' => null]);
+        $patient->moveTo('en_tratamiento');
+
+        return back()->with('ok', $patient->firstName().' retoma su tratamiento con el mismo plan.');
+    }
+
     public function reactivate(Patient $patient): RedirectResponse
     {
         $patient->moveTo('prospecto');
@@ -156,15 +194,19 @@ class PatientController extends Controller
             'city' => ['nullable', 'string', 'max:120'],
             'email' => ['nullable', 'email', 'max:150'],
             'source' => ['nullable', Rule::in(Patient::SOURCES)],
+            'sede_id' => ['nullable', Rule::exists('sedes', 'id')->where('clinic_id', $clinicId)],
         ], [
             'phone_key.unique' => 'Ya hay una persona con ese WhatsApp. Búscala en Pacientes.',
             'phone_key.min' => 'El WhatsApp parece incompleto.',
         ], [
             'name' => 'nombre', 'doc_type' => 'tipo de documento', 'doc_number' => 'número de documento',
-            'phone' => 'WhatsApp', 'phone_key' => 'WhatsApp', 'birth_date' => 'fecha de nacimiento', 'city' => 'ciudad', 'email' => 'correo',
+            'phone' => 'WhatsApp', 'phone_key' => 'WhatsApp', 'birth_date' => 'fecha de nacimiento', 'city' => 'ciudad', 'email' => 'correo', 'sede_id' => 'sede',
         ]);
 
         $data['name'] = trim($data['name']);
+        if (blank($data['sede_id'] ?? null)) {
+            unset($data['sede_id']); // al crear queda la sede actual; al editar no se cambia
+        }
         if (! $requireDocument && blank($data['doc_number'] ?? null)) {
             $data['doc_type'] = null;
             $data['doc_number'] = null;

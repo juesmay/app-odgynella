@@ -6,6 +6,7 @@ use App\Models\Clinic;
 use App\Models\Patient;
 use App\Models\Quote;
 use App\Models\Service;
+use App\Support\CurrentSede;
 use App\Support\QuotePdf;
 use App\Support\Time;
 use Illuminate\Http\RedirectResponse;
@@ -22,7 +23,10 @@ class QuoteController extends Controller
     {
         $filter = $request->query('estado', 'vigentes');
 
+        $sedeFilter = CurrentSede::filterId();
+
         $quotes = Quote::with('patient')
+            ->when($sedeFilter, fn ($q) => $q->whereHas('patient', fn ($p) => $p->where('sede_id', $sedeFilter)))
             ->when($filter === 'vigentes', fn ($q) => $q->where('status', 'vigente')->whereDate('valid_until', '>=', today()))
             ->when($filter === 'vencidas', fn ($q) => $q->where('status', 'vigente')->whereDate('valid_until', '<', today()))
             ->when($filter === 'aceptadas', fn ($q) => $q->where('status', 'aceptada'))
@@ -31,16 +35,32 @@ class QuoteController extends Controller
             ->paginate(30)
             ->withQueryString();
 
-        return view('quotes.index', compact('quotes', 'filter'));
+        return view('quotes.index', compact('quotes', 'filter', 'sedeFilter'));
     }
 
     public function create(Request $request): View
     {
         $patient = $request->integer('paciente') ? Patient::findOrFail($request->integer('paciente')) : null;
 
+        // Desde el odontograma: arma la cotización con el tratamiento indicado en cada diente.
+        $items = ($patient && $request->query('desde') === 'odontograma') ? $this->itemsFromOdontogram($patient) : [];
+        $quote = new Quote(['discount_amount' => 0]);
+
+        // Vuelve de una pausa con cotización nueva: trae lo que faltaba de sus planes y el anticipo como abono.
+        $resuming = $patient && $patient->stage === 'en_pausa' && $request->boolean('retomar');
+        if ($resuming) {
+            [$items, $credit, $codes, $advance] = $this->itemsFromPausedPlans($patient);
+            if ($credit > 0) {
+                $quote->discount_amount = $credit;
+                $quote->discount_label = ($advance > 0 ? 'Abono y descuento' : 'Descuento').' del plan anterior ('.implode(', ', $codes).')';
+            }
+        }
+
         return view('quotes.form', [
-            'quote' => new Quote(['discount_amount' => 0]),
-            'items' => [],
+            'quote' => $quote,
+            'items' => $items,
+            'fromOdontogram' => ! $resuming && $items !== [],
+            'resuming' => $resuming,
             'patient' => $patient,
             'services' => $this->serviceOptions(),
         ]);
@@ -148,10 +168,20 @@ class QuoteController extends Controller
     {
         abort_unless($quote->status === 'vigente', 422);
 
-        $quote->update(['status' => 'aceptada']);
+        $patient = $quote->patient;
+        DB::transaction(function () use ($quote, $patient) {
+            // Volvió de una pausa con cotización nueva: los planes pausados se cierran con lo que ya se hizo.
+            if ($patient->stage === 'en_pausa') {
+                foreach ($patient->plans()->whereNotNull('paused_at')->whereNull('closed_at')->get() as $old) {
+                    $old->update(['closed_total' => $old->doneValue(), 'closed_at' => now(), 'paused_at' => null]);
+                }
+            }
 
-        if (in_array($quote->patient->stage, ['prospecto', 'agendado', 'no_continuo'], true)) {
-            $quote->patient->moveTo('en_tratamiento');
+            $quote->update(['status' => 'aceptada']);
+        });
+
+        if (in_array($patient->stage, ['prospecto', 'agendado', 'no_continuo', 'en_pausa'], true)) {
+            $patient->moveTo('en_tratamiento');
         }
 
         return back()->with('ok', $quote->patient->firstName().' aceptó la cotización. Queda en tratamiento.');
@@ -264,6 +294,53 @@ class QuoteController extends Controller
             'stage_changed_at' => now(),
             'created_by' => $request->user()->id,
         ]);
+    }
+
+    /**
+     * Lo que faltaba por hacer en los planes pausados, con su precio de lista, y el crédito a favor:
+     * el descuento que tenía lo pendiente más lo que pagó por adelantado.
+     *
+     * @return array{0: list<array<string, mixed>>, 1: int, 2: list<string>, 3: int}
+     */
+    private function itemsFromPausedPlans(Patient $patient): array
+    {
+        $items = [];
+        $credit = 0;
+        $advance = 0;
+        $codes = [];
+        foreach ($patient->plans()->with(['items', 'payments'])->whereNotNull('paused_at')->whereNull('closed_at')->get() as $q) {
+            $codes[] = $q->code();
+            foreach ($q->items->whereNull('done_at') as $it) {
+                $items[] = ['service_id' => $it->service_id, 'description' => $it->description, 'teeth' => $it->teeth,
+                    'quantity' => $it->quantity, 'unit_price' => $it->unit_price, 'price_options' => $it->price_options];
+                $credit += $it->line_total - $q->netValue($it->line_total);
+            }
+            $advance += $q->advance();
+        }
+
+        return [$items, $credit + $advance, $codes, $advance];
+    }
+
+    /**
+     * Una fila por tratamiento: los dientes que lo llevan, la cantidad y el precio del catálogo.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function itemsFromOdontogram(Patient $patient): array
+    {
+        $prices = Service::pluck('price', 'id');
+        $rows = [];
+        foreach ($patient->teeth()->orderBy('tooth')->get() as $t) {
+            foreach ($t->plan ?? [] as $p) {
+                $key = ($p['service_id'] ?? '').'|'.mb_strtolower($p['name']);
+                $rows[$key] ??= ['service_id' => $p['service_id'] ?? null, 'description' => $p['name'], 'teeth' => [], 'quantity' => 0,
+                    'unit_price' => $p['service_id'] ? ($prices[$p['service_id']] ?? '') : '', 'price_options' => null];
+                $rows[$key]['teeth'][] = $t->tooth;
+                $rows[$key]['quantity']++;
+            }
+        }
+
+        return array_values(array_map(fn ($r) => ['teeth' => implode(', ', $r['teeth'])] + $r, $rows));
     }
 
     /** @return \Illuminate\Support\Collection<int, array<string, mixed>> */

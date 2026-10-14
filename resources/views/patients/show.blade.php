@@ -107,6 +107,8 @@
 
         @if ($patient->stage === 'prospecto')
             @include('patients._lost', ['patient' => $patient])
+        @elseif ($patient->stage === 'en_tratamiento')
+            @include('patients._pause', ['patient' => $patient])
         @endif
     </div>
 </div>

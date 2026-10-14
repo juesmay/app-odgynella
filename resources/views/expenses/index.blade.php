@@ -8,13 +8,13 @@
 <div class="head">
     <div>
         <h1>Gastos</h1>
-        <p class="sub">{{ $isDoc ? 'Todo lo que salió en el mes, por categoría y sede.' : 'Los gastos que has registrado.' }}</p>
+        <p class="sub">{{ $isDoc ? 'Todo lo que salió en el mes: del consultorio, del negocio y personal.' : 'Los gastos que has registrado.' }}</p>
     </div>
     <nav class="row" aria-label="Mes">
-        <a class="btn sm" href="{{ route('expenses.index', ['mes' => $prev->format('Y-m')] + request()->only('categoria', 'sede')) }}">←</a>
+        <a class="btn sm" href="{{ route('expenses.index', ['mes' => $prev->format('Y-m')] + request()->only('categoria', 'sede', 'tipo')) }}">←</a>
         <strong style="min-width:130px;text-align:center">{{ ucfirst($month->translatedFormat('F Y')) }}</strong>
         @if ($next->lte(today()))
-            <a class="btn sm" href="{{ route('expenses.index', ['mes' => $next->format('Y-m')] + request()->only('categoria', 'sede')) }}">→</a>
+            <a class="btn sm" href="{{ route('expenses.index', ['mes' => $next->format('Y-m')] + request()->only('categoria', 'sede', 'tipo')) }}">→</a>
         @else
             <span class="btn sm" aria-disabled="true" style="opacity:.4">→</span>
         @endif
@@ -24,11 +24,28 @@
 <div class="grid-side">
     <div class="stack">
         @if ($isDoc)
+            <div class="stats sm">
+                @foreach (Expense::TYPES as $t => $label)
+                    <a class="stat" href="{{ route('expenses.index', ['mes' => $month->format('Y-m'), 'tipo' => $t]) }}" style="text-decoration:none;color:inherit">
+                        <div class="label">{{ $label }}</div>
+                        <div class="v">{{ Time::money($byType[$t]) }}</div>
+                        <div class="d">{{ $t === 'personal' ? 'Lo que sacaste para ti' : ($t === 'consultorio' ? 'Arriendo, horas, insumos, laboratorio' : 'Publicidad, software, impuestos…') }}</div>
+                    </a>
+                @endforeach
+            </div>
             <form method="GET" class="card row" style="gap:10px">
                 <input type="hidden" name="mes" value="{{ $month->format('Y-m') }}">
+                <select name="tipo" class="input" style="width:auto" onchange="this.form.submit()" aria-label="Tipo">
+                    <option value="">Todos los tipos</option>
+                    @foreach (Expense::TYPES as $t => $label)<option value="{{ $t }}" @selected(request('tipo') === $t)>{{ $label }}</option>@endforeach
+                </select>
                 <select name="categoria" class="input" style="width:auto" onchange="this.form.submit()" aria-label="Categoría">
                     <option value="">Todas las categorías</option>
-                    @foreach (Expense::CATEGORIES as $c)<option @selected(request('categoria') === $c)>{{ $c }}</option>@endforeach
+                    @foreach ($categories as $type => $list)
+                        <optgroup label="{{ Expense::TYPES[$type] }}">
+                            @foreach ($list as $c)<option @selected(request('categoria') === $c->name)>{{ $c->name }}</option>@endforeach
+                        </optgroup>
+                    @endforeach
                 </select>
                 <select name="sede" class="input" style="width:auto" onchange="this.form.submit()" aria-label="Sede">
                     <option value="">Todas las sedes</option>
@@ -50,8 +67,9 @@
                     @foreach ($expenses as $e)
                         <tr class="{{ $e->isVoided() ? 'voided' : '' }}">
                             <td style="white-space:nowrap">{{ $e->spent_on->translatedFormat('j M') }}</td>
-                            <td>{{ $e->category }}</td>
-                            <td>@if ($e->historical)<span class="chip c-sched" style="padding:1px 7px;font-size:11px">Histórico</span> @endif{{ $e->detail }}@if ($e->supplier)<br><span class="small muted">{{ $e->supplier }}</span>@endif
+                            <td>{{ $e->category }}<br><span class="chip {{ ['consultorio' => 'c-room', 'negocio' => 'c-conf', 'personal' => 'c-noshow'][$e->type] ?? '' }}" style="padding:1px 7px;font-size:11px">{{ $e->typeLabel() }}</span></td>
+                            <td>@if ($e->historical)<span class="chip c-sched" style="padding:1px 7px;font-size:11px">Histórico</span> @endif{{ $e->detail }}{{ $e->hours ? ' ('.rtrim(rtrim(number_format($e->hours, 2, ',', ''), '0'), ',').' h)' : '' }}@if ($e->supplier)<br><span class="small muted">{{ $e->supplier }}</span>@endif
+                                @if ($e->patient)<br><a class="small" href="{{ route('patients.account', $e->patient) }}">Paciente: {{ $e->patient->name }}</a>@endif
                                 @if ($e->isVoided())<br><span class="small">Anulado: {{ $e->void_reason }}</span>@endif</td>
                             <td>{{ $e->sede->name ?? 'General' }}</td>
                             <td class="small">{{ $e->method }}</td>
@@ -95,12 +113,19 @@
         <label class="field" for="amount"><span>Valor</span>
             <input id="amount" name="amount" class="input" inputmode="numeric" value="{{ old('amount') }}" required placeholder="Ej: 180000">
         </label>
-        <label class="field" for="category"><span>Categoría</span>
-            <select id="category" name="category" class="input" required>
+        <label class="field" for="category_id"><span>Tipo y categoría</span>
+            <select id="category_id" name="category_id" class="input" required>
                 <option value="">Elige</option>
-                @foreach ($categories as $c)<option @selected(old('category') === $c)>{{ $c }}</option>@endforeach
+                @foreach ($categories as $type => $list)
+                    <optgroup label="{{ Expense::TYPES[$type] }}">
+                        @foreach ($list as $c)<option value="{{ $c->id }}" @selected((int) old('category_id') === $c->id)>{{ $c->name }}</option>@endforeach
+                    </optgroup>
+                @endforeach
             </select>
         </label>
+        @if ($isDoc)
+            <p class="small muted" style="margin-top:-6px">Personal: lo que sacas para ti. No resta a la utilidad del negocio, pero sí a lo que te queda. Las categorías se editan en <a href="{{ route('settings') }}#categorias">Configuración</a>.</p>
+        @endif
         <label class="field" for="detail"><span>Detalle</span>
             <input id="detail" name="detail" class="input" value="{{ old('detail') }}" required maxlength="200" placeholder="Ej: resinas y anestesia">
         </label>

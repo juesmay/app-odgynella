@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Diagnosis;
 use App\Models\Patient;
 use App\Support\Clinical;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -20,7 +21,11 @@ class HistoryController extends Controller
         return view('patients.history', ['patient' => $patient, 'tab' => 'historia']);
     }
 
-    /** Antecedentes. La asistente puede llenarlos con la paciente, salvo las enfermedades infecciosas. */
+    /**
+     * Guarda toda la historia de una vez: antecedentes y, si es la doctora, el examen clínico.
+     * Así nada de lo escrito en una sección se pierde al guardar otra.
+     * La asistente puede llenar los antecedentes con la paciente, salvo las enfermedades infecciosas.
+     */
     public function update(Request $request, Patient $patient): RedirectResponse
     {
         $data = $request->validate([
@@ -70,23 +75,41 @@ class HistoryController extends Controller
             $changes['infectious'] = $infectious ?: null;
         }
 
+        if ($request->user()->isDoctor() && $request->has('exam')) {
+            $changes['exam'] = $this->examData($request->input('exam', []));
+        }
+
         $patient->update($changes);
 
-        return back()->with('ok', 'Antecedentes guardados.');
+        return back()->with('ok', 'Historia clínica guardada.')->with('clear_draft', true);
     }
 
     public function exam(Request $request, Patient $patient): RedirectResponse
     {
-        $rules = [];
-        foreach (array_keys(Clinical::EXAM_FIELDS) as $key) {
-            $rules[$key] = ['nullable', 'string', 'max:1000'];
-        }
-        $patient->update(['exam' => $request->validate($rules)]);
+        $patient->update(['exam' => $this->examData($request->all())]);
 
         return back()->with('ok', 'Examen clínico guardado.');
     }
 
-    public function addDiagnosis(Request $request, Patient $patient): RedirectResponse
+    /** @return array<string, string|null> */
+    private function examData(mixed $input): array
+    {
+        $input = is_array($input) ? $input : [];
+        $rules = [];
+        foreach (array_keys(Clinical::EXAM_FIELDS) as $key) {
+            $rules[$key] = ['nullable', 'string', 'max:1000'];
+        }
+        validator($input, $rules)->validate();
+
+        $out = [];
+        foreach (array_keys(Clinical::EXAM_FIELDS) as $key) {
+            $out[$key] = filled($input[$key] ?? null) ? trim($input[$key]) : null;
+        }
+
+        return $out;
+    }
+
+    public function addDiagnosis(Request $request, Patient $patient): RedirectResponse|JsonResponse
     {
         $data = $request->validate([
             'code' => ['nullable', 'string', 'max:12'],
@@ -94,15 +117,28 @@ class HistoryController extends Controller
             'tooth' => ['nullable', 'string', 'max:20'],
         ], ['name.required' => 'Escribe o elige el diagnóstico.']);
 
-        $patient->diagnoses()->create([...$data, 'created_by' => $request->user()->id]);
+        $d = $patient->diagnoses()->create([...$data, 'created_by' => $request->user()->id]);
+
+        // Desde la historia clínica se agrega sin recargar la página, para no perder lo que se está escribiendo.
+        if ($request->expectsJson()) {
+            return response()->json([
+                'id' => $d->id, 'code' => $d->code, 'name' => $d->name, 'tooth' => $d->tooth,
+                'date' => $d->created_at->translatedFormat('j M Y'),
+                'remove' => route('patients.diagnoses.destroy', [$patient, $d]),
+            ], 201);
+        }
 
         return back()->with('ok', 'Diagnóstico agregado.');
     }
 
-    public function removeDiagnosis(Patient $patient, Diagnosis $diagnosis): RedirectResponse
+    public function removeDiagnosis(Request $request, Patient $patient, Diagnosis $diagnosis): RedirectResponse|JsonResponse
     {
         abort_unless($diagnosis->patient_id === $patient->id, 404);
         $diagnosis->delete(); // queda guardado como descartado
+
+        if ($request->expectsJson()) {
+            return response()->json(['ok' => true]);
+        }
 
         return back()->with('ok', 'Diagnóstico descartado.');
     }

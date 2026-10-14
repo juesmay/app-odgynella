@@ -26,12 +26,16 @@ class ReportController extends Controller
         $prev = $month->copy()->subMonth();
 
         $payments = $this->payments($from, $to)->get();
-        $expenses = Expense::counted()->whereDate('spent_on', '>=', $from->toDateString())->whereDate('spent_on', '<=', $to->toDateString())->get();
+        $all = Expense::counted()->whereDate('spent_on', '>=', $from->toDateString())->whereDate('spent_on', '<=', $to->toDateString())->get();
+        // Lo personal no es gasto del negocio: se resta aparte para saber lo que realmente le queda.
+        $expenses = $all->where('type', '!=', 'personal');
+        $personal = $all->where('type', 'personal');
 
         $income = (int) $payments->sum('amount');
         $spent = (int) $expenses->sum('amount');
+        $personalSpent = (int) $personal->sum('amount');
         $prevIncome = (int) $this->payments($prev->copy()->startOfMonth(), $prev->copy()->endOfMonth())->sum('amount');
-        $prevSpent = (int) Expense::counted()->whereDate('spent_on', '>=', $prev->copy()->startOfMonth()->toDateString())->whereDate('spent_on', '<=', $prev->copy()->endOfMonth()->toDateString())->sum('amount');
+        $prevSpent = (int) Expense::counted()->business()->whereDate('spent_on', '>=', $prev->copy()->startOfMonth()->toDateString())->whereDate('spent_on', '<=', $prev->copy()->endOfMonth()->toDateString())->sum('amount');
 
         $sedes = Sede::orderBy('id')->pluck('name', 'id');
         $bySede = $sedes->map(fn ($name, $id) => ['name' => $name, 'income' => (int) $payments->where('sede_id', $id)->sum('amount'), 'spent' => (int) $expenses->where('sede_id', $id)->sum('amount')]);
@@ -57,11 +61,28 @@ class ReportController extends Controller
 
         $receivables = Accounts::receivables();
 
+        // Ganancia por paciente en el mes: lo que pagó menos lo que costó atenderlo (horas de consultorio, laboratorio…).
+        $patientCosts = $expenses->whereNotNull('patient_id')->groupBy('patient_id')->map->sum('amount');
+        $patientIncome = $payments->groupBy('patient_id')->map->sum('amount');
+        $ids = $patientIncome->keys()->merge($patientCosts->keys())->unique();
+        $names = Patient::whereIn('id', $ids)->pluck('name', 'id');
+        $byPatient = $ids->map(fn ($id) => [
+            'id' => $id, 'name' => $names[$id] ?? '—',
+            'income' => (int) ($patientIncome[$id] ?? 0), 'cost' => (int) ($patientCosts[$id] ?? 0),
+        ])->map(fn ($r) => $r + ['profit' => $r['income'] - $r['cost']])
+            ->sortByDesc('income')->values();
+
         return view('reports.index', [
             'month' => $month,
             'income' => $income,
             'spent' => $spent,
             'profit' => $income - $spent,
+            'personalSpent' => $personalSpent,
+            'kept' => $income - $spent - $personalSpent,
+            'byType' => $all->groupBy('type')->map->sum('amount'),
+            'byPersonal' => $personal->groupBy('category')->map->sum('amount')->sortDesc(),
+            'byPatient' => $byPatient,
+            'roomTime' => (int) $expenses->where('category', \App\Models\ExpenseCategory::ROOM_TIME)->sum('amount'),
             'prevIncome' => $prevIncome,
             'prevSpent' => $prevSpent,
             'receivable' => (int) $receivables->sum(fn ($r) => $r['account']['owed']),
@@ -99,7 +120,8 @@ class ReportController extends Controller
         $clinic = $request->user()->clinic;
 
         $payments = Payment::with(['patient', 'sede'])->where('historical', false)->whereDate('paid_on', '>=', $from)->whereDate('paid_on', '<=', $to)->orderBy('receipt_number')->get();
-        $expenses = Expense::with('sede')->where('historical', false)->whereDate('spent_on', '>=', $from)->whereDate('spent_on', '<=', $to)->orderBy('spent_on')->orderBy('id')->get();
+        // Al contador van los gastos del negocio; lo personal no.
+        $expenses = Expense::with('sede')->business()->where('historical', false)->whereDate('spent_on', '>=', $from)->whereDate('spent_on', '<=', $to)->orderBy('spent_on')->orderBy('id')->get();
 
         $name = 'movimientos-'.str($clinic->name)->slug().'-'.$from.'-a-'.$to.'.csv';
 
@@ -121,7 +143,7 @@ class ReportController extends Controller
             foreach ($expenses as $e) {
                 $row([
                     $e->spent_on->format('d/m/Y'), 'Gasto', 'G-'.str_pad((string) $e->id, 5, '0', STR_PAD_LEFT), $e->supplier ?? '', '',
-                    $e->detail, $e->category, $e->sede->name ?? 'General', $e->method, 0, $e->isVoided() ? 0 : $e->amount,
+                    $e->detail, $e->typeLabel().' · '.$e->category, $e->sede->name ?? 'General', $e->method, 0, $e->isVoided() ? 0 : $e->amount,
                     $e->isVoided() ? 'Anulado' : 'Válido', trim(($e->isVoided() ? $e->void_reason.' ' : '').($e->support_path ? 'Con soporte' : 'Sin soporte')),
                 ]);
             }

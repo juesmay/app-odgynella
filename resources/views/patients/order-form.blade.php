@@ -5,8 +5,52 @@
 @section('content')
 @include('patients._header')
 
+<div style="margin-bottom:16px"><div class="dseg" role="group" aria-label="Tipo de orden">
+    <a href="{{ route('orders.create', $patient) }}" aria-pressed="{{ $kind === 'radiologia' ? 'true' : 'false' }}">Orden de radiografía</a>
+    <a href="{{ route('orders.create', [$patient, 'tipo' => 'libre']) }}" aria-pressed="{{ $kind === 'libre' ? 'true' : 'false' }}">Orden en blanco</a>
+</div></div>
+
+@if ($kind === 'libre')
 <form method="POST" action="{{ route('orders.store', $patient) }}" class="grid-side">
     @csrf
+    <input type="hidden" name="kind" value="libre">
+    <div class="card stack">
+        <h2>Orden en blanco</h2>
+        <p class="small muted" style="margin-top:-6px">Para recetas, órdenes de laboratorio, remisiones o indicaciones. Sale con tu logo, tus datos, la firma y el registro profesional.</p>
+        <label class="field" for="title"><span>Título</span>
+            <input id="title" name="title" class="input" list="order-titles" value="{{ old('title') }}" required maxlength="150" placeholder="Ej: Fórmula médica, Orden de laboratorio, Remisión a periodoncia">
+            <datalist id="order-titles">
+                @foreach (['Fórmula médica', 'Orden de laboratorio', 'Remisión', 'Indicaciones', 'Incapacidad', 'Certificado'] as $t)<option value="{{ $t }}">@endforeach
+            </datalist>
+        </label>
+        <label class="field" for="body"><span>Contenido</span>
+            <textarea id="body" name="body" class="input" style="min-height:300px" required maxlength="5000" placeholder="Escribe la orden tal como quieres que salga en el PDF.">{{ old('body') }}</textarea>
+        </label>
+    </div>
+    <aside class="stack">
+        <div class="card stack">
+            @if ($orderTemplates->isNotEmpty())
+                <label class="field" for="tpl"><span>Usar una plantilla</span>
+                    <select id="tpl" class="input">
+                        <option value="">Elige una plantilla…</option>
+                        @foreach ($orderTemplates as $t)<option value="{{ $t->id }}">{{ $t->title }}</option>@endforeach
+                    </select>
+                </label>
+                <p class="small muted">Llena el título y el contenido; los puedes cambiar antes de crear la orden.</p>
+            @else
+                <p class="small muted">Si repites siempre el mismo texto (una receta, unas indicaciones), guárdalo como plantilla en <a href="{{ route('settings') }}#plantillas">Configuración</a>.</p>
+            @endif
+            @unless ($hasSignature)
+                <p class="small" style="color:var(--warn)">Tu firma todavía no está guardada. Dibújala una vez en <a href="{{ route('settings') }}#marca">Configuración</a> para que salga en las órdenes.</p>
+            @endunless
+            <button class="btn pri block">Crear orden</button>
+        </div>
+    </aside>
+</form>
+@else
+<form method="POST" action="{{ route('orders.store', $patient) }}" class="grid-side">
+    @csrf
+    <input type="hidden" name="kind" value="radiologia">
     <div class="card stack">
         <h2>Estudios a realizar</h2>
         @php $old = collect(old('studies', []))->keyBy('name'); $i = 0; @endphp
@@ -63,4 +107,22 @@
         </div>
     </aside>
 </form>
+@endif
 @endsection
+
+@if ($kind === 'libre' && $orderTemplates->isNotEmpty())
+@push('scripts')
+<script>
+(function () {
+    var tpls = @json($orderTemplates->keyBy('id')), sel = document.getElementById('tpl'),
+        title = document.getElementById('title'), body = document.getElementById('body');
+    sel.addEventListener('change', function () {
+        var t = tpls[sel.value];
+        if (!t) return;
+        if (body.value.trim() && !confirm('¿Reemplazar lo que ya escribiste por la plantilla?')) { sel.value = ''; return; }
+        title.value = t.title; body.value = t.body;
+    });
+})();
+</script>
+@endpush
+@endif

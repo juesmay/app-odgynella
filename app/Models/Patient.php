@@ -4,6 +4,8 @@ namespace App\Models;
 
 use App\Models\Concerns\BelongsToClinic;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Patient extends Model
@@ -32,7 +34,16 @@ class Patient extends Model
         'agendado' => ['Valoración agendada', 'c-room'],
         'en_tratamiento' => ['En tratamiento', 'c-done'],
         'terminado' => ['Terminado', 'c-sched'],
+        'en_pausa' => ['En pausa', 'c-noshow'],
         'no_continuo' => ['No continuó', 'c-cancel'],
+    ];
+
+    public const PAUSE_REASONS = [
+        'Dinero',
+        'Viaje o cambio de ciudad',
+        'Salud o embarazo',
+        'No responde',
+        'Otro',
     ];
 
     public const LOST_REASONS = [
@@ -44,11 +55,34 @@ class Patient extends Model
     ];
 
     protected $fillable = [
-        'clinic_id', 'name', 'stage', 'stage_changed_at', 'lost_reason', 'doc_type', 'doc_number',
+        'clinic_id', 'sede_id', 'name', 'stage', 'stage_changed_at', 'lost_reason', 'doc_type', 'doc_number',
         'phone', 'phone_key', 'email', 'birth_date', 'city', 'source', 'data_consent_at', 'photo_consent',
         'anamnesis', 'alert_text', 'ghl_contact_id', 'created_by',
         'infectious', 'oncology', 'family_history', 'hereditary_history', 'exam', 'dentition', 'historical', 'notes',
     ];
+
+    /** Si no se elige sede al crear, queda en la sede que se está viendo (o la primera de la clínica). */
+    protected static function booted(): void
+    {
+        static::creating(function (Patient $p) {
+            if ($p->sede_id) {
+                return;
+            }
+            $p->sede_id = auth()->check() ? \App\Support\CurrentSede::get()?->id : null;
+            $p->sede_id ??= Sede::withoutGlobalScopes()->where('clinic_id', $p->clinic_id)->orderBy('id')->value('id');
+        });
+    }
+
+    public function sede(): BelongsTo
+    {
+        return $this->belongsTo(Sede::class);
+    }
+
+    /** Pacientes de una sede; null = todas. */
+    public function scopeInSede(Builder $q, ?int $sedeId): Builder
+    {
+        return $sedeId ? $q->where('patients.sede_id', $sedeId) : $q;
+    }
 
     protected function casts(): array
     {
@@ -128,7 +162,7 @@ class Patient extends Model
         $this->update([
             'stage' => $stage,
             'stage_changed_at' => now(),
-            'lost_reason' => $stage === 'no_continuo' ? $lostReason : null,
+            'lost_reason' => in_array($stage, ['no_continuo', 'en_pausa'], true) ? $lostReason : null,
         ]);
     }
 

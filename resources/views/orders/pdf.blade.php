@@ -22,7 +22,7 @@
             @if ($logo)<img class="logo" src="{{ $logo }}" alt="{{ $clinic->name }}">@else<div class="title" style="text-align:left;font-size:24pt">{{ $clinic->doctor_name }}</div>@endif
         </td>
         <td style="vertical-align:top">
-            <div class="title">Orden de radiografía</div>
+            <div class="title" @if ($order->isFree() && mb_strlen($order->title) > 22) style="font-size:{{ mb_strlen($order->title) > 40 ? 18 : 23 }}pt" @endif>{{ $order->isFree() ? $order->title : 'Orden de radiografía' }}</div>
             <div class="code">{{ $order->code() }} · {{ $order->issued_on->translatedFormat('j \d\e F \d\e Y') }}</div>
         </td>
     </tr>
@@ -31,8 +31,10 @@
 <table style="margin-top:12pt">
     <tr>
         <td style="width:55%;vertical-align:top;padding-right:14pt">
-            <div class="label">Centro radiológico:</div>
-            <div class="semi" style="margin-top:5pt;font-size:10.5pt">{{ $order->center ?: 'El de preferencia del paciente' }}</div>
+            @unless ($order->isFree())
+                <div class="label">Centro radiológico:</div>
+                <div class="semi" style="margin-top:5pt;font-size:10.5pt">{{ $order->center ?: 'El de preferencia del paciente' }}</div>
+            @endunless
         </td>
         <td style="vertical-align:top" class="r">
             @include('pdf._doctor')
@@ -49,6 +51,9 @@
     </table>
 </div>
 
+@if ($order->isFree())
+    <div style="margin-top:16pt;font-size:10.5pt;line-height:1.45;white-space:pre-line">{{ $order->body }}</div>
+@else
 <div class="label" style="margin-top:14pt;margin-bottom:6pt">Estudios a realizar</div>
 <table class="grid">
     <thead><tr><th>Estudio</th><th style="width:150pt">Diente o zona</th><th class="c" style="width:60pt">Cantidad</th></tr></thead>
@@ -66,6 +71,8 @@
 
 <div class="label" style="margin-top:14pt">Entrega de resultados</div>
 <div style="margin-top:4pt"><span class="check">☑</span> {{ $order->deliveryLabel() }}@if ($order->delivery === 'correo_doctora' && $clinic->email): <span class="b">{{ $clinic->email }}</span>@elseif ($order->delivery === 'virtual_paciente' && $p->email): <span class="b">{{ $p->email }}</span>@endif</div>
+
+@endif
 
 @if ($order->notes)
     <div class="label" style="margin-top:16pt">Observaciones</div>

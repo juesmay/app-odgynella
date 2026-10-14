@@ -27,6 +27,16 @@
     <label class="field" for="city"><span>Ciudad y país</span>
         <input id="city" name="city" class="input" value="{{ old('city', $patient->city) }}" maxlength="120">
     </label>
+    @php $sedeOptions = \App\Models\Sede::where('active', true)->orWhere('id', $patient->sede_id)->orderBy('id')->get(); @endphp
+    @if ($sedeOptions->count() > 1)
+        <label class="field" for="sede_id"><span>Sede donde se atiende</span>
+            <select id="sede_id" name="sede_id" class="input">
+                @foreach ($sedeOptions as $s)
+                    <option value="{{ $s->id }}" @selected((int) old('sede_id', $patient->sede_id ?? \App\Support\CurrentSede::get()?->id) === $s->id)>{{ $s->name }}</option>
+                @endforeach
+            </select>
+        </label>
+    @endif
     <label class="field" for="source"><span>Cómo llegó</span>
         <select id="source" name="source" class="input">
             <option value="">Sin dato</option>

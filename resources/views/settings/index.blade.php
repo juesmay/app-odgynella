@@ -153,6 +153,116 @@
     </details>
 </div>
 
+<form method="POST" action="{{ route('settings.rates') }}" class="card stack" id="tarifas">
+    @csrf @method('PUT')
+    <div>
+        <h2>Tarifa del consultorio por hora</h2>
+        <p class="small muted" style="margin-top:4px">Al marcar una cita como “Atendida” se registra el tiempo de consultorio como costo de ese paciente (duración de la cita × tarifa). Cuando cambie la tarifa (cada semestre), actualízala aquí: las citas ya atendidas no cambian. En $0 no se registra nada.</p>
+    </div>
+    <div class="fgrid">
+        @foreach ($sedes as $s)
+            <label class="field" for="rate-{{ $s->id }}"><span>{{ $s->name }}</span>
+                <input id="rate-{{ $s->id }}" name="rate[{{ $s->id }}]" class="input" inputmode="numeric" value="{{ $s->hourly_rate ?: '' }}" placeholder="$0 por hora">
+            </label>
+        @endforeach
+    </div>
+    <button class="btn pri" style="align-self:flex-start">Guardar tarifas</button>
+</form>
+
+<div class="card stack" id="categorias">
+    <div>
+        <h2>Categorías de gasto</h2>
+        <p class="small muted" style="margin-top:4px">Tres tipos: <b>Consultorio</b> (lo que cuesta atender: arriendo, horas, insumos, laboratorio), <b>Negocio</b> (publicidad, software, impuestos) y <b>Personal</b> (lo que sacas para ti). Lo personal y las categorías privadas no las ve la asistente.</p>
+    </div>
+    <div class="grid3">
+        @foreach (\App\Models\Expense::TYPES as $type => $label)
+            <div class="stack-sm">
+                <div class="label">{{ $label }}</div>
+                @foreach ($expenseCategories[$type] ?? [] as $c)
+                    <form method="POST" action="{{ route('settings.categories.update', $c) }}" class="catrow {{ $c->active ? '' : 'off' }}">
+                        @csrf @method('PUT')
+                        <input name="name" class="input" value="{{ $c->name }}" required maxlength="80" aria-label="Nombre" @readonly($c->name === \App\Models\ExpenseCategory::ROOM_TIME)>
+                        <label class="check small" title="Activa"><input type="checkbox" name="active" value="1" @checked($c->active) @disabled($c->name === \App\Models\ExpenseCategory::ROOM_TIME)><span>Activa</span></label>
+                        @if ($type !== 'personal')<label class="check small" title="La asistente no la ve"><input type="checkbox" name="private" value="1" @checked($c->private)><span>Privada</span></label>@endif
+                        <button class="btn sm">Guardar</button>
+                    </form>
+                @endforeach
+                <form method="POST" action="{{ route('settings.categories.store') }}" class="catrow">
+                    @csrf
+                    <input type="hidden" name="type" value="{{ $type }}">
+                    <input name="name" class="input" required maxlength="80" placeholder="Nueva categoría" aria-label="Nueva categoría de {{ $label }}">
+                    <button class="btn sm">Agregar</button>
+                </form>
+            </div>
+        @endforeach
+    </div>
+</div>
+
+<div class="card stack" id="hallazgos">
+    <div>
+        <h2>Hallazgos del odontograma</h2>
+        <p class="small muted" style="margin-top:4px">Lo que no esté en la lista del odontograma (por ejemplo, “Amalgama en mal estado” o “Diastema”). Aparecen al tocar un diente, junto a los que ya vienen.</p>
+    </div>
+    @if ($findings->isNotEmpty())
+        <div class="tblwrap"><table class="tbl compact">
+            <thead><tr><th>Hallazgo</th><th style="width:90px">Sigla</th><th style="width:80px">Color</th><th>Se marca</th><th>Activo</th><th></th></tr></thead>
+            <tbody>
+            @foreach ($findings as $f)
+                <tr>
+                    <td><input form="hf-{{ $f->id }}" name="name" class="input" value="{{ $f->name }}" required maxlength="80" aria-label="Nombre"></td>
+                    <td><input form="hf-{{ $f->id }}" name="abbr" class="input" value="{{ $f->abbr }}" required maxlength="4" aria-label="Sigla"></td>
+                    <td><input form="hf-{{ $f->id }}" name="color" type="color" class="input" style="height:40px;padding:3px" value="{{ $f->color }}" aria-label="Color"></td>
+                    <td class="small">{{ $f->faces ? 'Por caras' : 'Diente completo' }}</td>
+                    <td><label class="check"><input form="hf-{{ $f->id }}" type="checkbox" name="active" value="1" @checked($f->active)><span class="sr-only">Activo</span></label></td>
+                    <td><form id="hf-{{ $f->id }}" method="POST" action="{{ route('settings.findings.update', $f) }}">@csrf @method('PUT')<button class="btn sm">Guardar</button></form></td>
+                </tr>
+            @endforeach
+            </tbody>
+        </table></div>
+        <p class="small muted">Desactivar uno lo quita de la lista, pero los dientes que ya lo tienen lo siguen mostrando.</p>
+    @endif
+    <form method="POST" action="{{ route('settings.findings.store') }}" class="fgrid" style="align-items:end">
+        @csrf
+        <label class="field" for="hf-name"><span>Nuevo hallazgo</span><input id="hf-name" name="name" class="input" required maxlength="80" placeholder="Ej: Amalgama en mal estado" value="{{ old('name') }}"></label>
+        <label class="field" for="hf-abbr"><span>Sigla (sale bajo el diente)</span><input id="hf-abbr" name="abbr" class="input" required maxlength="4" placeholder="Ej: AM" value="{{ old('abbr') }}"></label>
+        <label class="field" for="hf-color"><span>Color</span><input id="hf-color" name="color" type="color" class="input" style="height:44px;padding:4px" value="{{ old('color', '#B5651D') }}"></label>
+        <fieldset class="stack-sm" style="border:0;padding:0;margin:0">
+            <legend class="label" style="margin-bottom:6px">¿Cómo se marca?</legend>
+            <label class="check"><input type="radio" name="faces" value="1" @checked(old('faces') === '1')><span>Por caras (pinta la cara del diente)</span></label>
+            <label class="check"><input type="radio" name="faces" value="0" @checked(old('faces', '0') === '0')><span>Diente completo (sale la sigla)</span></label>
+        </fieldset>
+        <button class="btn" style="justify-self:start">Agregar hallazgo</button>
+    </form>
+</div>
+
+<div class="card stack" id="plantillas">
+    <div>
+        <h2>Plantillas de órdenes</h2>
+        <p class="small muted" style="margin-top:4px">Textos que repites en las órdenes en blanco: recetas, indicaciones después de un procedimiento, remisiones. Al hacer una orden eliges la plantilla y la ajustas si hace falta.</p>
+    </div>
+    @foreach ($orderTemplates as $t)
+        <details>
+            <summary style="cursor:pointer;font-weight:700;padding:8px 0">{{ $t->title }}</summary>
+            <form method="POST" action="{{ route('settings.order-templates.update', $t) }}" class="stack" style="margin:8px 0 6px">
+                @csrf @method('PUT')
+                <label class="field" for="ot-{{ $t->id }}"><span>Título</span><input id="ot-{{ $t->id }}" name="title" class="input" value="{{ $t->title }}" required maxlength="150"></label>
+                <label class="field" for="ob-{{ $t->id }}"><span>Texto</span><textarea id="ob-{{ $t->id }}" name="body" class="input" style="min-height:180px" required maxlength="5000">{{ $t->body }}</textarea></label>
+                <button class="btn pri" style="align-self:flex-start">Guardar plantilla</button>
+            </form>
+            <form method="POST" action="{{ route('settings.order-templates.destroy', $t) }}" style="margin-bottom:14px">@csrf @method('DELETE')<button class="btn sm ghost danger">Eliminar plantilla</button></form>
+        </details>
+    @endforeach
+    <details @if ($orderTemplates->isEmpty()) open @endif>
+        <summary style="cursor:pointer;font-weight:700;padding:8px 0">+ Nueva plantilla</summary>
+        <form method="POST" action="{{ route('settings.order-templates.store') }}" class="stack" style="margin-top:8px">
+            @csrf
+            <label class="field" for="ot-new"><span>Título</span><input id="ot-new" name="title" class="input" required maxlength="150" placeholder="Ej: Fórmula médica después de extracción"></label>
+            <label class="field" for="ob-new"><span>Texto</span><textarea id="ob-new" name="body" class="input" style="min-height:160px" required maxlength="5000" placeholder="Ej: Ibuprofeno 400 mg, 1 tableta cada 8 horas por 3 días…"></textarea></label>
+            <button class="btn" style="align-self:flex-start">Agregar plantilla</button>
+        </form>
+    </details>
+</div>
+
 <div class="card">
     <h2>Conexión con GoHighLevel</h2>
     <p class="muted">Queda abierta. El WhatsApp de cada paciente es su llave única, para enlazar los dos sistemas cuando se active (fase 4).</p>

@@ -33,4 +33,13 @@ class CurrentSede
     {
         session(['sede_id' => $id]);
     }
+
+    /**
+     * Para listas (pacientes, cotizaciones, cartera): la sede elegida arriba,
+     * o null si se pidió ver todas con ?sedes=todas.
+     */
+    public static function filterId(): ?int
+    {
+        return request()->query('sedes') === 'todas' ? null : self::get()?->id;
+    }
 }

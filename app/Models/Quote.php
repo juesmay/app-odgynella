@@ -21,7 +21,7 @@ class Quote extends Model
     protected $fillable = [
         'clinic_id', 'patient_id', 'number', 'issued_on', 'valid_until', 'subtotal',
         'discount_amount', 'discount_label', 'total', 'patient_notes', 'internal_notes',
-        'status', 'created_by', 'historical', 'legacy_ref',
+        'status', 'created_by', 'historical', 'legacy_ref', 'paused_at', 'closed_at', 'closed_total',
     ];
 
     protected function casts(): array
@@ -33,7 +33,31 @@ class Quote extends Model
             'discount_amount' => 'integer',
             'total' => 'integer',
             'historical' => 'boolean',
+            'paused_at' => 'datetime',
+            'closed_at' => 'datetime',
+            'closed_total' => 'integer',
         ];
+    }
+
+    /** En pausa: el paciente detuvo el tratamiento. No se cobra ni aparece en cartera hasta que vuelva. */
+    public function isPaused(): bool
+    {
+        return $this->paused_at !== null && $this->closed_at === null;
+    }
+
+    /**
+     * Cerrado: el paciente volvió con una cotización nueva. Este plan queda valiendo solo lo que se hizo;
+     * lo pendiente pasó a la cotización nueva (y si había anticipo, quedó allá como abono).
+     */
+    public function isClosed(): bool
+    {
+        return $this->closed_at !== null;
+    }
+
+    /** Lo que vale el plan hoy: el total, o lo realizado si se cerró. */
+    public function effectiveTotal(): int
+    {
+        return $this->isClosed() ? (int) $this->closed_total : $this->total;
     }
 
     public function patient(): BelongsTo
@@ -119,6 +143,10 @@ class Quote extends Model
 
     public function doneValue(): int
     {
+        if ($this->isClosed()) {
+            return (int) $this->closed_total;
+        }
+
         $items = $this->relationLoaded('items') ? $this->items : $this->items()->get();
         $done = $items->whereNotNull('done_at');
 
@@ -143,7 +171,7 @@ class Quote extends Model
 
     public function balance(): int
     {
-        return max(0, $this->total - $this->paidAmount());
+        return max(0, $this->effectiveTotal() - $this->paidAmount());
     }
 
     public function owed(): int
@@ -153,7 +181,7 @@ class Quote extends Model
 
     public function advance(): int
     {
-        return max(0, $this->paidAmount() - $this->doneValue());
+        return $this->isClosed() ? 0 : max(0, $this->paidAmount() - $this->doneValue());
     }
 
     /** Resumen listo para mostrar. */
@@ -161,15 +189,16 @@ class Quote extends Model
     {
         $done = $this->doneValue();
         $paid = $this->paidAmount();
+        $total = $this->effectiveTotal();
 
         return [
-            'total' => $this->total,
+            'total' => $total,
             'done' => $done,
             'paid' => $paid,
-            'balance' => max(0, $this->total - $paid),
+            'balance' => max(0, $total - $paid),
             'owed' => max(0, $done - $paid),
-            'advance' => max(0, $paid - $done),
-            'pending_work' => max(0, $this->total - $done),
+            'advance' => $this->isClosed() ? 0 : max(0, $paid - $done),
+            'pending_work' => max(0, $total - $done),
         ];
     }
 }

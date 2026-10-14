@@ -55,6 +55,12 @@
     {{-- 2. Qué necesita --}}
     <section class="card stack">
         <div class="card-h"><h2>Tratamientos</h2><span class="small muted">Elige del catálogo o escribe uno a mano</span></div>
+        @if ($resuming ?? false)
+            <div class="infobar" style="margin:0"><span>Vuelve de una pausa. Trae lo que faltaba por hacer, a precio de hoy (ajústalo si cambió). Lo que ya había pagado de más y el descuento que tenía van como abono. Al aceptar esta cotización, el plan anterior se cierra con lo que ya se hizo; si debía algo de eso, la deuda sigue en el plan anterior.</span></div>
+        @endif
+        @if ($fromOdontogram ?? false)
+            <div class="infobar" style="margin:0"><span>Armada con el tratamiento indicado en el odontograma. Revisa los valores antes de guardar; los que están en $0 no tienen precio en el catálogo.</span></div>
+        @endif
         <div class="tblwrap">
             <table class="tbl" id="items">
                 <thead><tr><th style="min-width:220px">Tratamiento</th><th style="width:120px">Dientes</th><th class="r" style="width:80px">Cant.</th><th class="r" style="width:150px">Valor unitario</th><th class="r" style="width:130px">Total</th><th style="width:60px"></th></tr></thead>
