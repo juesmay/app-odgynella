@@ -56,8 +56,11 @@ class DatabaseSeeder extends Seeder
             ]);
         }
 
+        // Los 9 consentimientos de la doctora (con campos) y el de uso de imagen. Las plantillas de ejemplo
+        // sin completar quedan inactivas.
+        DefaultConsents::seedForms($clinic->id);
         foreach (DefaultConsents::all() as [$name, $body]) {
-            ConsentTemplate::create(['clinic_id' => $clinic->id, 'name' => $name, 'body' => $body]);
+            ConsentTemplate::create(['clinic_id' => $clinic->id, 'name' => $name, 'body' => $body, 'active' => ! str_contains($body, '[Escriba aquí')]);
         }
 
         // En el hosting (APP_ENV=production) las contraseñas son temporales y aleatorias: se muestran

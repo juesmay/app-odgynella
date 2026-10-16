@@ -26,4 +26,18 @@ class DefaultConsents
             ['Uso de imagen en redes sociales', "Yo, {paciente}, identificada con {documento}, autorizo a la {doctora} a usar las fotografías y videos de mi tratamiento en sus redes sociales, página web y material publicitario, sin que se muestre mi nombre completo.\n\nEntiendo que esta autorización es voluntaria, que no recibo pago por ella y que puedo retirarla en cualquier momento informándolo por escrito.\n\nFecha: {fecha}."],
         ];
     }
+
+    /** Carga los consentimientos de la doctora (con campos) que la clínica todavía no tenga. */
+    public static function seedForms(int $clinicId): void
+    {
+        foreach (ConsentForms::all() as $key => $form) {
+            $exists = \Illuminate\Support\Facades\DB::table('consent_templates')->where('clinic_id', $clinicId)->where('form', $key)->exists();
+            if (! $exists) {
+                \Illuminate\Support\Facades\DB::table('consent_templates')->insert([
+                    'clinic_id' => $clinicId, 'name' => $form['title'], 'form' => $key, 'body' => ConsentForms::body($key),
+                    'active' => true, 'created_at' => now(), 'updated_at' => now(),
+                ]);
+            }
+        }
+    }
 }

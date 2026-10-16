@@ -25,7 +25,7 @@ class SettingsController extends Controller
             'services' => Service::orderBy('is_package')->orderBy('name')->get(),
             'sedes' => Sede::orderBy('id')->get(),
             'clinic' => auth()->user()->clinic,
-            'templates' => ConsentTemplate::orderBy('name')->get(),
+            'templates' => ConsentTemplate::orderByRaw('form is null')->orderBy('name')->get(),
             'findings' => OdontogramFinding::orderBy('name')->get(),
             'orderTemplates' => OrderTemplate::orderBy('title')->get(),
             'expenseCategories' => ExpenseCategory::orderBy('name')->get()->groupBy('type'),

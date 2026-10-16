@@ -13,6 +13,7 @@
             @foreach ($consents as $c)
                 <a class="rowbtn" href="{{ route('consents.show', [$patient, $c]) }}">
                     <span style="flex:1;min-width:200px"><strong>{{ $c->title }}</strong><br><span class="small muted">Firmado el {{ $c->signed_at->translatedFormat('j \d\e F \d\e Y, g:i a') }}</span></span>
+                    @if (! empty($c->form_data['decision']))<span class="chip {{ $c->form_data['decision']['accepted'] ? 'c-done' : 'c-cancel' }}">{{ $c->form_data['decision']['accepted'] ? 'Aceptó' : 'No aceptó' }}</span>@endif
                     <span class="btn sm">Ver</span>
                 </a>
             @endforeach

@@ -12,7 +12,7 @@ class Consent extends Model
     use BelongsToClinic;
 
     protected $fillable = [
-        'clinic_id', 'patient_id', 'consent_template_id', 'title', 'body',
+        'clinic_id', 'patient_id', 'consent_template_id', 'title', 'body', 'form_data',
         'patient_signature', 'doctor_signature', 'doctor_name', 'signed_by', 'signed_at',
     ];
 
@@ -20,7 +20,7 @@ class Consent extends Model
 
     protected function casts(): array
     {
-        return ['signed_at' => 'datetime'];
+        return ['signed_at' => 'datetime', 'form_data' => 'array'];
     }
 
     public function patient(): BelongsTo

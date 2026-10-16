@@ -174,7 +174,8 @@ class ClinicalHistoryTest extends TestCase
         $p = $this->patient($c['clinic'], '3001112233', 'Laura Gómez');
         $tpl = ConsentTemplate::create(['clinic_id' => $c['clinic']->id, 'name' => 'Aclaramiento', 'body' => 'Yo, {paciente}, con {documento}, autorizo a la {doctora}.']);
 
-        $this->actingAs($c['assistant'])->get(route('consents.create', $p))->assertOk()->assertSee('Yo, Laura Gómez, con C.C. 123, autorizo a la Dra. Prueba.');
+        $this->actingAs($c['assistant'])->get(route('consents.create', $p))->assertOk()->assertSee('Aclaramiento');
+        $this->get(route('consents.create', [$p, 'plantilla' => $tpl->id]))->assertOk()->assertSee('Yo, Laura Gómez, con C.C. 123, autorizo a la Dra. Prueba.');
 
         $this->post(route('consents.store', $p), ['template_id' => $tpl->id, 'patient_signature' => self::SIG, 'doctor_signature' => 'data:image/png;base64,bm9wZQ=='])
             ->assertSessionHasErrors('doctor_signature');

@@ -440,15 +440,32 @@ class DemoSeeder extends Seeder
 
     private function consent(Patient $p, int $daysAgo): void
     {
-        $t = ConsentTemplate::where('clinic_id', $this->clinic->id)->orderBy('id')->first();
+        // Consentimiento de prótesis fija, llenado en pantalla como lo hace la doctora.
+        $t = ConsentTemplate::where('clinic_id', $this->clinic->id)->where('form', 'protesis_fija')->first()
+            ?? ConsentTemplate::where('clinic_id', $this->clinic->id)->orderBy('id')->first();
         if (! $t) {
             return;
         }
+        $form = $t->formDef();
+        $date = now()->subDays($daysAgo);
         Consent::create([
             'clinic_id' => $this->clinic->id, 'patient_id' => $p->id, 'consent_template_id' => $t->id,
             'title' => $t->name, 'body' => $t->render($p, $this->clinic->doctor_name),
+            'form_data' => $form ? [
+                'subtitle' => $form['subtitle'],
+                'rows' => [
+                    ['Paciente', $p->name], ['Documento', $p->documentLabel()], ['Historia clínica', (string) $p->doc_number],
+                    ['Fecha y lugar', 'Envigado, '.$date->translatedFormat('j \\d\\e F \\d\\e Y')], ['Profesional tratante', $this->clinic->doctor_name],
+                    ['Dientes pilares / piezas a tratar', '45 y 47 (puente de tres unidades)'], ['Zona / arcada', 'Inferior derecha'],
+                    ['Tratamiento previsto', 'Puente fijo'], ['Material informado / seleccionado', 'Zirconia'],
+                    ['Diagnóstico / motivo del tratamiento', 'Ausencia del 46 por extracción hace 5 años.'],
+                ],
+                'decision' => ['accepted' => true, 'options' => $form['decision']],
+                'signer' => ['name' => $p->name, 'detail' => $p->documentLabel()],
+                'assent' => null, 'witness' => null, 'note' => $form['note'], 'license' => $this->clinic->doctor_license,
+            ] : null,
             'patient_signature' => $this->signature, 'doctor_signature' => $this->signature,
-            'doctor_name' => $this->clinic->doctor_name, 'signed_by' => $this->doctor->id, 'signed_at' => now()->subDays($daysAgo),
+            'doctor_name' => $this->clinic->doctor_name, 'signed_by' => $this->doctor->id, 'signed_at' => $date,
         ]);
     }
 

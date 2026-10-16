@@ -9,11 +9,17 @@ class ConsentTemplate extends Model
 {
     use BelongsToClinic;
 
-    protected $fillable = ['clinic_id', 'name', 'body', 'active'];
+    protected $fillable = ['clinic_id', 'name', 'form', 'body', 'active'];
 
     protected function casts(): array
     {
         return ['active' => 'boolean'];
+    }
+
+    /** Definición de campos del formulario, o null si es una plantilla de texto libre. @return array<string, mixed>|null */
+    public function formDef(): ?array
+    {
+        return \App\Support\ConsentForms::get($this->form);
     }
 
     public function render(Patient $patient, string $doctor): string

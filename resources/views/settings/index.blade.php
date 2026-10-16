@@ -133,11 +133,11 @@
 <div class="card stack">
     <div>
         <h2>Consentimientos informados</h2>
-        <p class="small muted" style="margin-top:4px">Pega aquí tus textos. Puedes usar {paciente}, {documento}, {doctora} y {fecha}: se llenan solos al firmar. Cambiar un texto no altera los consentimientos ya firmados.</p>
+        <p class="small muted" style="margin-top:4px">Los que dicen “con campos” se llenan en pantalla (dientes, diagnóstico, modalidad…) y salen con tu logo y tu firma guardada. En el texto, una línea que empieza con <code>## </code> es un título y una que empieza con <code>- </code> es una viñeta. Puedes usar {paciente}, {documento}, {doctora} y {fecha}. Cambiar un texto no altera los consentimientos ya firmados.</p>
     </div>
     @foreach ($templates as $t)
         <details>
-            <summary style="cursor:pointer;font-weight:700;padding:8px 0">{{ $t->name }}{{ $t->active ? '' : ' (inactivo)' }}</summary>
+            <summary style="cursor:pointer;font-weight:700;padding:8px 0">{{ $t->name }}@if ($t->form) <span class="chip c-conf" style="padding:1px 8px;font-size:11px">con campos</span>@endif{{ $t->active ? '' : ' (inactivo)' }}</summary>
             <form method="POST" action="{{ route('settings.templates.update', $t) }}" class="stack" style="margin:8px 0 16px">
                 @csrf @method('PUT')
                 <label class="field" for="tn-{{ $t->id }}"><span>Nombre</span><input id="tn-{{ $t->id }}" name="name" class="input" value="{{ $t->name }}" required maxlength="120"></label>
